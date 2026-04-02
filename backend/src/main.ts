@@ -5,30 +5,32 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // 1. Configurações de Validação (Essencial para os DTOs funcionarem)
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
       whitelist: true,
+      forbidNonWhitelisted: true, // Dá erro se mandarem campos que não existem no DTO
     }),
   );
-  
-  // 1. CORS Flexível: Aceita localhost (desenvolvimento) e o seu domínio da Vercel (produção)
-  const allowedOrigins = [
-    'http://localhost:3000',
-    process.env.FRONTEND_URL, // Variável que criaremos na nuvem (ex: https://44go.vercel.app)
-  ].filter(Boolean) as string[];
 
+  // 2. CORS Liberado: Para o deploy inicial, o melhor é deixar 'true' 
+  // Isso permite que qualquer origem (Vercel, localhost, etc) acesse a API.
   app.enableCors({
-    origin: allowedOrigins,
+    origin: true, 
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
 
   app.setGlobalPrefix('api');
 
-  // 2. Porta Dinâmica: A nuvem injeta process.env.PORT. Se não existir, cai para 3333 local.
+  // 3. Porta Dinâmica para o Render (Ele usa a variável process.env.PORT)
   const port = process.env.PORT || 3333;
-  await app.listen(port);
   
-  console.log(`Backend 44Go rodando na porta: ${port}`);
+  // Importante: 0.0.0.0 força o Nest a ouvir em todas as interfaces de rede, 
+  // o que ajuda muito em alguns ambientes de nuvem.
+  await app.listen(port, '0.0.0.0');
+
+  console.log(`🚀 Backend 44Go rodando em: http://localhost:${port}/api`);
 }
 bootstrap();
