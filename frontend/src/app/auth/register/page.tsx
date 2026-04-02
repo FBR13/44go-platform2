@@ -18,10 +18,16 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
 
-    // 1. Cria o usuário no Supabase Auth
+    // 1. Cria o usuário e INJETA o nome nos metadados do Supabase!
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          name: name, // É daqui que o seu Header vai puxar o nome bonito!
+          full_name: name,
+        }
+      }
     });
 
     if (authError) {
@@ -30,7 +36,7 @@ export default function RegisterPage() {
       return;
     }
 
-    // 2. Salva os dados extras (nome e role) na nossa tabela pública de usuários
+    // 2. Salva os dados extras na nossa tabela pública de usuários
     if (authData.user) {
       const { error: dbError } = await supabase
         .from('users')
@@ -40,7 +46,6 @@ export default function RegisterPage() {
 
       if (dbError) {
         console.error('Erro ao salvar perfil:', dbError);
-        // Não vamos travar o usuário por isso agora, mas logamos o erro
       }
     }
 
@@ -49,11 +54,13 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 bg-white p-8 border border-gray-200 rounded-lg shadow-sm">
-      <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Criar Conta</h2>
+    <div className="max-w-md mx-auto mt-16 bg-white p-8 border border-gray-100 rounded-2xl shadow-lg">
+      <h2 className="text-2xl font-bold text-center mb-6 text-gray-900">
+        Criar Conta no 44Go
+      </h2>
       
       {error && (
-        <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">
+        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm border border-red-100">
           {error}
         </div>
       )}
@@ -65,7 +72,7 @@ export default function RegisterPage() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
             required
           />
         </div>
@@ -75,7 +82,7 @@ export default function RegisterPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
             required
           />
         </div>
@@ -85,7 +92,7 @@ export default function RegisterPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
             required
             minLength={6}
           />
@@ -93,15 +100,15 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700 transition disabled:bg-green-300"
+          className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-3 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-sm mt-2"
         >
           {loading ? 'Cadastrando...' : 'Cadastrar'}
         </button>
       </form>
 
-      <p className="mt-4 text-center text-sm text-gray-600">
+      <p className="mt-6 text-center text-sm text-gray-600">
         Já tem uma conta?{' '}
-        <Link href="/auth/login" className="text-blue-600 hover:underline">
+        <Link href="/auth/login" className="text-[#fa7109] font-medium hover:underline">
           Faça login
         </Link>
       </p>

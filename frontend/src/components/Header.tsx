@@ -26,12 +26,6 @@ export function Header() {
             >
               44Go
             </Link>
-            <Link
-              href="/products"
-              className="text-sm sm:text-base font-medium text-gray-700 hover:text-[#fa7109] transition-colors whitespace-nowrap"
-            >
-              Produtos
-            </Link>
           </div>
 
           <div className="flex items-center justify-end gap-2 sm:gap-4 min-w-0">

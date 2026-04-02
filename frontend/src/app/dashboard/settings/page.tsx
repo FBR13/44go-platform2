@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/lib/api'; // <-- IMPORTAÇÃO DA SUA FUNÇÃO AQUI
 
 export default function SettingsPage() {
   const { user, loading } = useAuth();
@@ -91,7 +92,8 @@ export default function SettingsPage() {
     
     try {
       // Vamos enviar os dados atualizados para o nosso Backend!
-      const response = await fetch(`http://localhost:3333/api/stores/${store.id}`, {
+      // Sai o localhost estático, entra a apiUrl dinâmica com crase
+      const response = await fetch(apiUrl(`/stores/${store.id}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

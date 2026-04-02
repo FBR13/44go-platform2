@@ -8,6 +8,7 @@ import { ProductCard } from '@/components/ProductCard';
 import { useAuth } from '@/context/AuthContext';
 import { CATEGORIES, DAILY_OFFERS } from '@/lib/mock-data';
 import { StoreCarousel } from '@/components/StoreCarousel';
+import { apiUrl } from '@/lib/api'; // <-- IMPORTAÇÃO DA SUA FUNÇÃO AQUI
 
 export default function Home() {
   const { user } = useAuth();
@@ -21,7 +22,8 @@ export default function Home() {
     // Busca os produtos
     async function fetchProducts() {
       try {
-        const response = await fetch('http://localhost:3333/api/products');
+        // Sai o localhost estático, entra a apiUrl dinâmica
+        const response = await fetch(apiUrl('/products'));
         if (response.ok) {
           const data = await response.json();
           setRealProducts(data);
@@ -36,7 +38,8 @@ export default function Home() {
     // Busca as lojas para o carrossel
     async function fetchStores() {
       try {
-        const response = await fetch('http://localhost:3333/api/stores');
+        // Sai o localhost estático, entra a apiUrl dinâmica
+        const response = await fetch(apiUrl('/stores'));
         if (response.ok) {
           const data = await response.json();
           // Filtra apenas as lojas que têm banner para exibir no carrossel

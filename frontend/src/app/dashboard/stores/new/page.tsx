@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/api'; // <-- IMPORTAÇÃO DA SUA FUNÇÃO AQUI
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -24,7 +25,7 @@ export default function DashboardPage() {
         const { data, error } = await supabase
           .from('stores')
           .select('*')
-          .eq('seller_id', user)
+          .eq('seller_id', user!.id) // Correção de segurança: user.id
           .maybeSingle(); 
           
         if (data) {
@@ -65,7 +66,8 @@ export default function DashboardPage() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:3333/api/stores', {
+      // Sai o localhost, entra a apiUrl!
+      const response = await fetch(apiUrl('/stores'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

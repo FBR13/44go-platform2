@@ -40,13 +40,13 @@ function LoginForm() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 bg-white p-8 border border-gray-200 rounded-lg shadow-sm">
-      <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
+    <div className="max-w-md mx-auto mt-16 bg-white p-8 border border-gray-100 rounded-2xl shadow-lg">
+      <h2 className="text-2xl font-bold text-center mb-6 text-gray-900">
         Entrar no 44Go
       </h2>
 
       {error && (
-        <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm">
+        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm border border-red-100">
           {error}
         </div>
       )}
@@ -60,7 +60,7 @@ function LoginForm() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
             required
           />
         </div>
@@ -72,22 +72,22 @@ function LoginForm() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
             required
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition disabled:bg-blue-300"
+          className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-3 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-sm mt-2"
         >
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
       </form>
 
-      <p className="mt-4 text-center text-sm text-gray-600">
+      <p className="mt-6 text-center text-sm text-gray-600">
         Não tem uma conta?{' '}
-        <Link href="/auth/register" className="text-blue-600 hover:underline">
+        <Link href="/auth/register" className="text-[#fa7109] font-medium hover:underline">
           Cadastre-se
         </Link>
       </p>
