@@ -30,9 +30,6 @@ async function resolveDisplayName(user: User | null): Promise<string> {
     .eq('id', user.id)
     .maybeSingle();
 
-  // 🕵️ NOSSO ESPIÃO: Vai imprimir no painel (F12) o que o banco devolveu
-  console.log("🕵️ X-9 DO SUPABASE:", { data, error, idDoUsuario: user.id });
-
   const fromProfile = data?.full_name?.trim();
   if (fromProfile) return fromProfile;
   

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation'; // <-- Adicionei o useRouter aqui
+import { useSearchParams, useRouter } from 'next/navigation';
 import { SectionContainer } from '@/components/SectionContainer';
 import { CategoryItem } from '@/components/CategoryItem';
 import { ProductCard } from '@/components/ProductCard';
@@ -14,7 +14,7 @@ import { apiUrl } from '@/lib/api';
 // O conteúdo real da página fica aqui dentro para o Next.js não reclamar do useSearchParams
 function HomeContent() {
   const { user } = useAuth();
-  const router = useRouter(); // <-- Usado para limpar a busca
+  const router = useRouter(); 
   
   // Lê a pesquisa digitada lá no Header!
   const searchParams = useSearchParams();
@@ -167,13 +167,7 @@ function HomeContent() {
             {filteredProducts.map((product: any) => (
               <ProductCard
                 key={product.id}
-                product={{
-                  id: product.id,
-                  title: product.title || product.name || 'Produto sem título',
-                  base_price: product.base_price || product.price || 0,
-                  image_url: product.image_url || product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=300&q=80',
-                  badge: 'Novo'
-                }}
+                product={product} // <-- A MÁGICA ACONTECE AQUI! Passando o produto inteiro.
               />
             ))}
           </div>

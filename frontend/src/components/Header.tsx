@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { CartNavLink } from '@/components/CartNavLink';
-import { apiUrl } from '@/lib/api'; // <-- Adicionado para buscar os produtos
+import { apiUrl } from '@/lib/api';
 
 // Subcomponente: O Input de Pesquisa com Resultados ao Vivo
 function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
@@ -18,13 +18,11 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
   
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Foca no input automaticamente e busca os produtos silenciosamente no fundo
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
     }
     
-    // Busca os produtos apenas uma vez quando a pessoa abre a lupa
     if (isOpen && allProducts.length === 0) {
       setIsLoading(true);
       fetch(apiUrl('/products'))
@@ -35,15 +33,13 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
     }
   }, [isOpen, allProducts.length]);
 
-  // Filtra os produtos "ao vivo" conforme o usuário digita
   const liveResults = searchInput.trim() === '' 
     ? [] 
     : allProducts.filter((p: any) => {
         const title = (p.title || p.name || '').toLowerCase();
         return title.includes(searchInput.toLowerCase().trim());
-      }).slice(0, 5); // Mostra no máximo 5 resultados na caixinha suspensa
+      }).slice(0, 5);
 
-  // Ação ao dar Enter no botão Buscar (Pesquisa normal)
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (searchInput.trim()) {
@@ -51,10 +47,9 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
     } else {
       router.push('/');
     }
-    onClose(); // Fecha a caixa após pesquisar
+    onClose();
   };
 
-  // Ação ao clicar direto em um produto da lista suspensa
   const handleSelectProduct = (productName: string) => {
     setSearchInput(productName);
     router.push(`/?q=${encodeURIComponent(productName)}`);
@@ -80,7 +75,6 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
           />
         </div>
         
-        {/* O BOTÃO QUE VOCÊ CONFIGUROU */}
         <button 
           type="submit"
           className="bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-6 rounded-xl font-medium hover:bg-gradient-to-r hover:from-[#a84c06] hover:to-[#6b0019] transition-colors"
@@ -89,7 +83,6 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
         </button>
       </form>
 
-      {/* CAIXA DE RESULTADOS AO VIVO (Aparece embaixo do input quando digita) */}
       {searchInput.trim() !== '' && (
         <div className="max-w-3xl mx-auto mt-2 px-4">
           <div className="bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden flex flex-col">
@@ -108,7 +101,6 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                       onClick={() => handleSelectProduct(product.title || product.name)}
                       className="w-full text-left p-3 hover:bg-orange-50 flex items-center gap-4 transition-colors group"
                     >
-                      {/* Miniatura do produto */}
                       <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
                         {product.image_url || product.image ? (
                           <img src={product.image_url || product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
@@ -117,7 +109,6 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                         )}
                       </div>
                       
-                      {/* Dados do produto */}
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-gray-900 group-hover:text-[#fa7109] transition-colors">
                           {product.title || product.name}
@@ -127,7 +118,6 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                         </p>
                       </div>
                       
-                      {/* Setinha para indicar o clique */}
                       <div className="text-gray-300 group-hover:text-[#fa7109] pr-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                       </div>
@@ -135,7 +125,6 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                   </li>
                 ))}
                 
-                {/* Botão de ver todos */}
                 <li>
                   <button 
                     type="button"
@@ -164,7 +153,7 @@ export function Header() {
   const { user, loading, displayName, signOut } = useAuth();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false); // Novo estado para a caixa de pesquisa
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -200,18 +189,16 @@ export function Header() {
             <button
               onClick={() => {
                 setIsSearchOpen(!isSearchOpen);
-                setIsMobileMenuOpen(false); // Fecha o menu mobile se estiver aberto
+                setIsMobileMenuOpen(false);
               }}
               className={`p-2 rounded-full transition-colors ${isSearchOpen ? 'bg-orange-50 text-[#fa7109]' : 'text-gray-600 hover:bg-gray-50 hover:text-[#fa7109]'}`}
               aria-label="Pesquisar"
             >
               {isSearchOpen ? (
-                // Ícone de X para fechar a pesquisa
                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               ) : (
-                // Ícone de Lupa
                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -227,7 +214,7 @@ export function Header() {
               className="sm:hidden p-2 text-gray-600 hover:text-[#fa7109] hover:bg-gray-50 rounded-full"
               onClick={() => {
                 setIsMobileMenuOpen(!isMobileMenuOpen);
-                setIsSearchOpen(false); // Fecha a pesquisa se estiver aberta
+                setIsSearchOpen(false);
               }}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -245,12 +232,21 @@ export function Header() {
                 <span className="text-sm text-gray-400">…</span>
               ) : user ? (
                 <>
+                  {/* NOVO LINK: Minhas Compras */}
+                  <Link
+                    href="/orders"
+                    className="text-sm font-medium text-gray-900 hover:text-[#fa7109] transition-colors"
+                  >
+                    🛍️ Minhas Compras
+                  </Link>
+
                   <Link
                     href="/dashboard"
-                    className="bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-4 py-2 rounded-md hover:opacity-90 transition-opacity font-medium shadow-sm text-sm"
+                    className="bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-4 py-2 rounded-md hover:opacity-90 transition-opacity font-medium shadow-sm text-sm ml-2"
                   >
                     Painel Lojista
                   </Link>
+                  
                   <Link
                     href="/profile"
                     className="text-sm font-medium text-gray-900 hover:text-[#fa7109] transition-colors truncate max-w-[120px]"
@@ -258,6 +254,7 @@ export function Header() {
                   >
                     {displayName}
                   </Link>
+
                   <button
                     type="button"
                     onClick={() => void handleSignOut()}
@@ -281,7 +278,7 @@ export function Header() {
         </div>
       </div>
 
-      {/* CAIXA DE PESQUISA EXPANSÍVEL (COM RESULTADOS AO VIVO) */}
+      {/* CAIXA DE PESQUISA EXPANSÍVEL */}
       <Suspense fallback={null}>
         <SearchDropdown isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       </Suspense>
@@ -293,6 +290,15 @@ export function Header() {
             <div className="px-4 space-y-3 flex flex-col">
               {!loading && user ? (
                 <>
+                  {/* NOVO LINK MOBILE: Minhas Compras */}
+                  <Link 
+                    href="/orders" 
+                    className="block px-3 py-2 text-base font-medium text-gray-900 hover:bg-gray-50 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    🛍️ Minhas Compras
+                  </Link>
+
                   <Link 
                     href="/profile" 
                     className="block px-3 py-2 text-base font-medium text-[#fa7109] hover:bg-gray-50 rounded-md"
@@ -300,6 +306,7 @@ export function Header() {
                   >
                     👤 Meu Perfil ({displayName})
                   </Link>
+
                   <Link 
                     href="/dashboard" 
                     className="block px-3 py-2 text-base font-medium text-gray-900 hover:bg-gray-50 rounded-md"
@@ -307,6 +314,7 @@ export function Header() {
                   >
                     🏪 Painel do Lojista
                   </Link>
+                  
                   <button 
                     onClick={() => void handleSignOut()}
                     className="block w-full text-left px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-md"
