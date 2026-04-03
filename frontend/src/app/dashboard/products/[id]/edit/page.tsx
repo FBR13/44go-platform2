@@ -11,19 +11,20 @@ import { toast } from 'sonner';
 export default function EditProductPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
-    const params = useParams(); // Pega o ID da URL dinamicamente
+    const params = useParams(); 
     const productId = params.id;
 
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [loadingData, setLoadingData] = useState(true);
     const [error, setError] = useState('');
+    const [category, setCategory] = useState('');
 
     // Estados do Formulário
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState('');
-    const [stock, setStock] = useState('0'); // Inicia em 0 até carregar
+    const [stock, setStock] = useState('0'); 
     const [imageUrl, setImageUrl] = useState('');
 
     // 1. Carrega os dados atuais do produto ao abrir a página
@@ -115,6 +116,7 @@ export default function EditProductPage() {
                     // Converte string "10" -> número inteiro 10
                     stock_quantity: parseInt(stock), 
                     image_url: imageUrl,
+                    category: category,
                 }),
             });
 

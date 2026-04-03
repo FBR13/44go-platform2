@@ -23,6 +23,8 @@ export default function NewProductPage() {
     const [price, setPrice] = useState('');
     const [stock, setStock] = useState('1'); // Estado para o estoque iniciado em 1
     const [imageUrl, setImageUrl] = useState('');
+    const [category, setCategory] = useState('');
+
 
     // 1. Antes de criar o produto, precisamos descobrir qual é a loja deste lojista
     useEffect(() => {
@@ -102,6 +104,7 @@ export default function NewProductPage() {
                     stock_quantity: parseInt(stock), // Enviando o estoque como número inteiro
                     image_url: imageUrl,
                     store_id: storeId,
+                    category: category
                 }),
             });
 
@@ -185,6 +188,25 @@ export default function NewProductPage() {
                             placeholder="Ex: Vestido Canelado Mid Preto"
                             required
                         />
+                    </div>
+
+
+                    <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                        <select value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none bg-white"
+                            required
+                        >
+                            <option value="" disabled>Selecione uma categoria...</option>
+                            <option value="Moda Feminina">👗 Moda Feminina</option>
+                            <option value="Moda Masculina">👕 Moda Masculina</option>
+                            <option value="Calçados">👟 Calçados</option>
+                            <option value="Acessórios">⌚ Acessórios</option>
+                            <option value="Beleza">💄 Beleza</option>
+                            <option value="Eletrônicos">📱 Eletrônicos</option>
+
+                        </select>
                     </div>
 
                     <div className="sm:col-span-2">
