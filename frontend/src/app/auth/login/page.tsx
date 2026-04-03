@@ -40,57 +40,61 @@ function LoginForm() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 bg-white p-8 border border-gray-100 rounded-2xl shadow-lg">
-      <h2 className="text-2xl font-bold text-center mb-6 text-gray-900">
-        Entrar no 44Go
-      </h2>
+    // Adicionado px-4 no mobile para não colar nas bordas e mt-8 para não empurrar muito pra baixo
+    <div className="w-full max-w-md mx-auto mt-8 sm:mt-16 px-4 sm:px-0">
+      {/* Reduzido o padding interno no mobile (p-6) e mantido no PC (sm:p-8) */}
+      <div className="bg-white p-6 sm:p-8 border border-gray-100 rounded-2xl shadow-lg">
+        <h2 className="text-2xl font-bold text-center mb-6 text-gray-900">
+          Entrar no 44Go
+        </h2>
 
-      {error && (
-        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm border border-red-100">
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm border border-red-100">
+            {error}
+          </div>
+        )}
 
-      <form onSubmit={handleLogin} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            E-mail
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Senha
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-3 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-sm mt-2"
-        >
-          {loading ? 'Entrando...' : 'Entrar'}
-        </button>
-      </form>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              E-mail
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Senha
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-3 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-sm mt-2"
+          >
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
 
-      <p className="mt-6 text-center text-sm text-gray-600">
-        Não tem uma conta?{' '}
-        <Link href="/auth/register" className="text-[#fa7109] font-medium hover:underline">
-          Cadastre-se
-        </Link>
-      </p>
+        <p className="mt-6 text-center text-sm text-gray-600">
+          Não tem uma conta?{' '}
+          <Link href="/auth/register" className="text-[#fa7109] font-medium hover:underline">
+            Cadastre-se
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
