@@ -4,7 +4,25 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { apiUrl } from '@/lib/api'; // <-- IMPORTAÇÃO DA SUA FUNÇÃO AQUI
+import { apiUrl } from '@/lib/api';
+import { toast } from 'sonner'; // <-- Mudamos para o Sonner
+
+// --- FUNÇÃO DE MÁSCARA DE TELEFONE ---
+const maskPhone = (value: string) => {
+  const v = value.replace(/\D/g, ''); // Remove tudo que não é número
+  if (v.length <= 10) {
+    // Formato Fixo: (62) 3333-3333
+    return v
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{4})(\d)/, '$1-$2')
+      .slice(0, 14);
+  }
+  // Formato Celular: (62) 99999-9999
+  return v
+    .replace(/(\d{2})(\d)/, '($1) $2')
+    .replace(/(\d{5})(\d)/, '$1-$2')
+    .slice(0, 15);
+};
 
 export default function SettingsPage() {
   const { user, loading } = useAuth();
@@ -36,8 +54,9 @@ export default function SettingsPage() {
         setStore(data);
         setFormData({
           description: data.description || '',
-          phone: data.phone || '',
-          whatsapp: data.whatsapp || '',
+          // Já aplica a máscara na hora de carregar do banco
+          phone: data.phone ? maskPhone(data.phone) : '',
+          whatsapp: data.whatsapp ? maskPhone(data.whatsapp) : '',
           logo_url: data.logo_url || '',
           banner_url: data.banner_url || ''
         });
@@ -46,41 +65,35 @@ export default function SettingsPage() {
     fetchStore();
   }, [user]);
 
-  // Função mágica de Upload direto pro Supabase
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
     try {
       setIsUploading(true);
-      
-      // Cria um nome único para a imagem (ex: 123-logo-8493.png)
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}-${type}-${Math.random()}.${fileExt}`;
 
-      // 1. Envia pro Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('store_assets')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      // 2. Pega o link público da imagem
       const { data: publicUrlData } = supabase.storage
         .from('store_assets')
         .getPublicUrl(fileName);
 
-      // 3. Salva o link na tela
       setFormData(prev => ({
         ...prev,
         [type === 'logo' ? 'logo_url' : 'banner_url']: publicUrlData.publicUrl
       }));
 
-      alert('Imagem enviada com sucesso!');
+      toast.success('Imagem enviada! Não esqueça de salvar as alterações.');
 
     } catch (error) {
       console.error(error);
-      alert('Erro ao enviar imagem.');
+      toast.error('Erro ao enviar imagem.');
     } finally {
       setIsUploading(false);
     }
@@ -91,55 +104,67 @@ export default function SettingsPage() {
     setIsSaving(true);
     
     try {
-      // Vamos enviar os dados atualizados para o nosso Backend!
-      // Sai o localhost estático, entra a apiUrl dinâmica com crase
+      // DICA: Limpamos as máscaras (deixamos só números) antes de mandar pro backend
+      const dataToSave = {
+        ...formData,
+        phone: formData.phone.replace(/\D/g, ''),
+        whatsapp: formData.whatsapp.replace(/\D/g, ''),
+      };
+
       const response = await fetch(apiUrl(`/stores/${store.id}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSave),
       });
 
       if (!response.ok) throw new Error('Erro ao salvar no backend');
       
-      alert('Configurações salvas com sucesso!');
+      toast.success('Configurações da loja salvas com sucesso! ✨');
       router.push('/dashboard');
     } catch (error) {
       console.error(error);
-      alert('Erro ao salvar as configurações.');
+      toast.error('Erro ao salvar as configurações.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (loading || !store) return <div className="p-8">Carregando...</div>;
+  if (loading || !store) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-[#fa7109]"></div>
+    </div>
+  );
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-6 min-h-screen">
       <h1 className="text-3xl font-extrabold text-gray-900 mb-8">Perfil da Loja</h1>
 
-      <form onSubmit={handleSave} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+      <form onSubmit={handleSave} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-8">
         
         {/* SESSÃO DE IMAGENS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-8 border-b border-gray-100">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Banner da Loja (1200x400)</label>
-            <div className="h-32 w-full bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden">
+            <label className="block text-sm font-bold text-gray-700 mb-3">Banner da Loja (Destaque)</label>
+            <div className="h-40 w-full bg-gray-50 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-200 relative overflow-hidden group">
               {formData.banner_url ? (
-                <img src={formData.banner_url} alt="Banner" className="w-full h-full object-cover" />
+                <img src={formData.banner_url} alt="Banner" className="w-full h-full object-cover group-hover:opacity-75 transition-opacity" />
               ) : (
-                <span className="text-gray-400 text-sm">Sem banner</span>
+                <div className="text-center">
+                  <span className="text-3xl block mb-1">🖼️</span>
+                  <span className="text-gray-400 text-xs">Clique para subir banner</span>
+                </div>
               )}
               <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'banner')} className="absolute inset-0 opacity-0 cursor-pointer" />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Logo da Loja (Quadrada)</label>
-            <div className="h-32 w-32 bg-gray-100 rounded-full flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden">
+            <label className="block text-sm font-bold text-gray-700 mb-3">Logo da Loja</label>
+            <div className="h-40 w-40 bg-gray-50 rounded-full mx-auto md:mx-0 flex items-center justify-center border-2 border-dashed border-gray-200 relative overflow-hidden group shadow-inner">
               {formData.logo_url ? (
-                <img src={formData.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                <img src={formData.logo_url} alt="Logo" className="w-full h-full object-cover group-hover:opacity-75 transition-opacity" />
               ) : (
-                <span className="text-gray-400 text-sm">Sem logo</span>
+                <span className="text-gray-400 text-3xl">🏪</span>
               )}
               <input type="file" accept="image/*" onChange={(e) => handleUploadImage(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
             </div>
@@ -148,46 +173,55 @@ export default function SettingsPage() {
 
         {/* SESSÃO DE TEXTOS */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Descrição / Slogan</label>
+          <label className="block text-sm font-bold text-gray-700 mb-2">Descrição / Slogan da Loja</label>
           <textarea 
             value={formData.description}
             onChange={(e) => setFormData({...formData, description: e.target.value})}
-            className="w-full border border-gray-300 p-3 rounded-lg focus:ring-[#fa7109]"
+            className="w-full border border-gray-300 p-4 rounded-xl focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow"
             rows={3}
-            placeholder="Conte um pouco sobre o que você vende..."
+            placeholder="Ex: A melhor moda feminina do Setor Norte Ferroviário"
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp de Vendas</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">WhatsApp de Vendas</label>
             <input 
               type="text" 
               value={formData.whatsapp}
-              onChange={(e) => setFormData({...formData, whatsapp: e.target.value})}
-              className="w-full border border-gray-300 p-3 rounded-lg focus:ring-[#fa7109]"
-              placeholder="(62) 99999-9999"
+              // APLICA MÁSCARA NO ONCHANGE
+              onChange={(e) => setFormData({...formData, whatsapp: maskPhone(e.target.value)})}
+              className="w-full border border-gray-300 p-3.5 rounded-xl focus:ring-2 focus:ring-[#fa7109] outline-none font-medium"
+              placeholder="(62) 9 9999-9999"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Telefone Fixo (Opcional)</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Telefone Fixo (Opcional)</label>
             <input 
               type="text" 
               value={formData.phone}
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
-              className="w-full border border-gray-300 p-3 rounded-lg focus:ring-[#fa7109]"
+              // APLICA MÁSCARA NO ONCHANGE
+              onChange={(e) => setFormData({...formData, phone: maskPhone(e.target.value)})}
+              className="w-full border border-gray-300 p-3.5 rounded-xl focus:ring-2 focus:ring-[#fa7109] outline-none font-medium"
               placeholder="(62) 3333-3333"
             />
           </div>
         </div>
 
-        <button 
-          type="submit" 
-          disabled={isSaving || isUploading}
-          className="bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-8 py-3.5 rounded-lg text-lg font-medium hover:opacity-90 transition-opacity shadow-lg  disabled:opacity-50 w-full"
-        >
-          {isUploading ? 'Fazendo upload...' : isSaving ? 'Salvando...' : 'Salvar Configurações'}
-        </button>
+        <div className="pt-4">
+          <button 
+            type="submit" 
+            disabled={isSaving || isUploading}
+            className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isUploading ? 'Enviando imagem...' : isSaving ? (
+              <>
+                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                Salvando...
+              </>
+            ) : 'Salvar Configurações'}
+          </button>
+        </div>
 
       </form>
     </div>

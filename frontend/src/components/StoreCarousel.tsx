@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link'; // <-- Adicionado o Link do Next.js
 
 export function StoreCarousel({ stores }: { stores: any[] }) {
   const [current, setCurrent] = useState(0);
@@ -24,12 +25,14 @@ export function StoreCarousel({ stores }: { stores: any[] }) {
             index === current ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          {/* Imagem de Fundo (Banner) */}
-          <img
-            src={store.banner_url || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1200'}
-            className="w-full h-full object-cover opacity-50"
-            alt={store.name}
-          />
+          {/* Imagem de Fundo (Banner) - Sem dados mockados */}
+          {store.banner_url && (
+            <img
+              src={store.banner_url}
+              className="w-full h-full object-cover opacity-50"
+              alt={store.name}
+            />
+          )}
           
           {/* Fundo Gradiente extra para melhorar a leitura do texto */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
@@ -38,8 +41,13 @@ export function StoreCarousel({ stores }: { stores: any[] }) {
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4 md:p-6 text-center z-10">
             
             {/* Logo da Loja - Menor no mobile */}
-            <div className="w-16 h-16 md:w-24 md:h-24 mb-3 md:mb-4 rounded-full border-2 md:border-4 border-white overflow-hidden bg-white shadow-lg">
-              <img src={store.logo_url || '/logo-placeholder.png'} alt={store.name} className="w-full h-full object-contain" />
+            <div className="w-16 h-16 md:w-24 md:h-24 mb-3 md:mb-4 rounded-full border-2 md:border-4 border-white overflow-hidden bg-white shadow-lg flex items-center justify-center text-3xl">
+              {store.logo_url ? (
+                <img src={store.logo_url} alt={store.name} className="w-full h-full object-contain" />
+              ) : (
+                // Fallback real caso a loja não tenha logo
+                <span>🏪</span>
+              )}
             </div>
             
             {/* Título - Reduzido no mobile */}
@@ -47,18 +55,20 @@ export function StoreCarousel({ stores }: { stores: any[] }) {
               {store.name}
             </h2>
             
-            {/* Descrição - Oculta em telas muito pequenas para não poluir, visível a partir de 'sm' */}
-            <p className="hidden sm:block text-sm md:text-xl max-w-lg font-light drop-shadow-md px-4 line-clamp-2">
-              {store.description || 'Confira as novidades da nossa loja!'}
-            </p>
+            {/* Descrição - Oculta se não houver descrição real no banco */}
+            {store.description && (
+              <p className="hidden sm:block text-sm md:text-xl max-w-lg font-light drop-shadow-md px-4 line-clamp-2">
+                {store.description}
+              </p>
+            )}
             
-            {/* Botão de Visitar */}
-            <a 
-              href={`/store/${store.slug}`}
-              className="mt-3 md:mt-6 bg-gradient-to-r from-[#fa7109] to-[#ab0029] hover:opacity-90 text-white px-6 py-2 md:px-8 md:py-3 rounded-full font-bold transition-all transform hover:scale-105 text-sm md:text-base shadow-lg"
+            {/* Botão de Visitar - Rota correta para a loja */}
+            <Link 
+              href={`/stores/${store.id}`}
+              className="mt-3 md:mt-6 bg-gradient-to-r from-[#fa7109] to-[#ab0029] hover:opacity-90 text-white px-6 py-2 md:px-8 md:py-3 rounded-full font-bold transition-all transform hover:scale-105 text-sm md:text-base shadow-lg inline-block"
             >
               Visitar Loja
-            </a>
+            </Link>
           </div>
         </div>
       ))}

@@ -4,15 +4,18 @@ import { Suspense, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { toast } from 'sonner'; // <-- Importação do Toaster
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get('redirect');
+  
+  // CORREÇÃO: O fallback agora é '/' (Home) em vez de '/dashboard'
   const safeRedirect =
     rawRedirect?.startsWith('/') && !rawRedirect.startsWith('//')
       ? rawRedirect
-      : '/dashboard';
+      : '/';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,32 +27,32 @@ function LoginForm() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      setError(error.message);
+    if (signInError) {
+      setError('E-mail ou senha incorretos.'); // Mensagem mais amigável
+      toast.error('Erro ao fazer login. Verifique suas credenciais.');
       setLoading(false);
       return;
     }
 
+    toast.success('Bem-vindo(a) de volta! 🚀'); // Notificação de sucesso bonitona
     router.push(safeRedirect);
     router.refresh();
   };
 
   return (
-    // Adicionado px-4 no mobile para não colar nas bordas e mt-8 para não empurrar muito pra baixo
     <div className="w-full max-w-md mx-auto mt-8 sm:mt-16 px-4 sm:px-0">
-      {/* Reduzido o padding interno no mobile (p-6) e mantido no PC (sm:p-8) */}
       <div className="bg-white p-6 sm:p-8 border border-gray-100 rounded-2xl shadow-lg">
         <h2 className="text-2xl font-bold text-center mb-6 text-gray-900">
           Entrar no 44Go
         </h2>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm border border-red-100">
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm border border-red-100 animate-in fade-in zoom-in duration-200">
             {error}
           </div>
         )}
@@ -82,9 +85,16 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-3 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-sm mt-2"
+            className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-3 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-sm mt-2 flex items-center justify-center gap-2"
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? (
+              <>
+                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                Entrando...
+              </>
+            ) : (
+              'Entrar'
+            )}
           </button>
         </form>
 
@@ -103,7 +113,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="max-w-md mx-auto mt-16 text-center text-gray-500">
+        <div className="max-w-md mx-auto mt-16 text-center text-gray-500 flex flex-col items-center gap-2">
+          <span className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#fa7109]"></span>
           Carregando…
         </div>
       }

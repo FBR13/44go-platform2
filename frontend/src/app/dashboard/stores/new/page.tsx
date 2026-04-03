@@ -5,7 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { apiUrl } from '@/lib/api'; // <-- IMPORTAÇÃO DA SUA FUNÇÃO AQUI
+import { apiUrl } from '@/lib/api';
+import { toast } from 'sonner'; // <-- Importando nossas notificações!
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -14,7 +15,6 @@ export default function DashboardPage() {
   const [storeName, setStoreName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [checkingStore, setCheckingStore] = useState(true);
-  const [error, setError] = useState('');
 
   // 1. Verifica se o usuário JÁ TEM uma loja cadastrada
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function DashboardPage() {
         const { data, error } = await supabase
           .from('stores')
           .select('*')
-          .eq('seller_id', user!.id) // Correção de segurança: user.id
+          .eq('seller_id', user!.id)
           .maybeSingle(); 
           
         if (data) {
@@ -59,14 +59,14 @@ export default function DashboardPage() {
   const handleCreateStore = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // A BARREIRA QUE ACALMA O TYPESCRIPT:
     if (!user) return;
 
+    // Log para você ter CERTEZA de que o frontend está mandando o ID
+    console.log("Enviando para o backend. Meu ID é:", user.id);
+
     setIsCreating(true);
-    setError('');
 
     try {
-      // Sai o localhost, entra a apiUrl!
       const response = await fetch(apiUrl('/stores'), {
         method: 'POST',
         headers: {
@@ -74,21 +74,23 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({
           name: storeName,
-          seller_id: user.id, // <-- Sem o ponto de interrogação agora!
+          seller_id: user.id, // O NestJS precisa ler exatamente esse nome!
         }),
       });
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.message || 'Erro ao criar loja no backend.');
+        throw new Error(errData.message || 'Erro ao criar loja no servidor.');
       }
 
       const newStore = await response.json();
-      setStore(newStore); // Loja criada com sucesso, o painel vai aparecer!
+      setStore(newStore); 
+      toast.success('Loja criada com sucesso! Bem-vindo ao painel.'); // <-- Toast de Sucesso!
       
     } catch (err: any) {
       console.error("Erro ao criar:", err);
-      setError(err.message || 'Erro de conexão com o Backend.');
+      // <-- Toast de Erro com o visual padrão da sua marca!
+      toast.error(err.message || 'Não foi possível conectar ao servidor.'); 
     } finally {
       setIsCreating(false);
     }
@@ -105,7 +107,7 @@ export default function DashboardPage() {
             </div>
             <Link 
               href="/dashboard/products/new" 
-              className="bg-[#fa7109] text-white px-6 py-3 rounded-md font-medium hover:bg-[#e06507] transition-colors"
+              className="bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 transition-opacity shadow-md"
             >
               + Novo Produto
             </Link>
@@ -117,39 +119,42 @@ export default function DashboardPage() {
 
   // 4. TELA B: Se ele NÃO TEM loja, mostra o formulário de criar
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="bg-white p-8 max-w-md w-full rounded-2xl shadow-lg border border-gray-100">
-        <div className="text-center mb-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 -mt-4 sm:-mt-8">
+      <div className="bg-white p-8 max-w-md w-full rounded-2xl shadow-xl border border-gray-100">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center text-2xl mx-auto mb-4 border border-orange-100">
+            🏪
+          </div>
           <h1 className="text-2xl font-bold text-gray-900">Abra sua Loja Virtual</h1>
-          <p className="text-gray-500 text-sm mt-2">Dê um nome para o seu negócio na 44Go e comece a vender em minutos.</p>
+          <p className="text-gray-500 text-sm mt-2">Dê um nome para o seu negócio no 44Go e comece a vender em minutos.</p>
         </div>
         
-        <form onSubmit={handleCreateStore} className="space-y-4">
+        <form onSubmit={handleCreateStore} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Loja</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Nome da Loja</label>
             <input 
               type="text" 
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
-              className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none"
+              className="w-full border border-gray-300 p-3.5 rounded-xl focus:ring-2 focus:ring-[#fa7109] focus:outline-none transition-shadow text-gray-900 font-medium"
               placeholder="Ex: Confecções Silva"
               required
             />
           </div>
           
-          {/* O espião de erros visual */}
-          {error && (
-            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
-              {error}
-            </div>
-          )}
-          
           <button 
             type="submit" 
-            disabled={isCreating}
-            className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-3 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            disabled={isCreating || !storeName.trim()}
+            className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-4 rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
           >
-            {isCreating ? 'Criando sua loja...' : 'Criar minha Loja'}
+            {isCreating ? (
+              <>
+                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                Criando sua loja...
+              </>
+            ) : (
+              'Criar minha Loja'
+            )}
           </button>
         </form>
       </div>

@@ -1,14 +1,26 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class StoresService {
+  // Criamos um logger para investigar o que o NestJS está recebendo
+  private readonly logger = new Logger(StoresService.name);
+
   constructor(private readonly supabaseService: SupabaseService) {}
 
   async create(createStoreDto: CreateStoreDto) {
     const supabase = this.supabaseService.getClient();
+
+    // 👇 O ESPIÃO: Isso vai aparecer no terminal onde o NestJS está rodando
+    this.logger.log('--- TENTANDO CRIAR LOJA ---');
+    this.logger.log(`Dados recebidos do Frontend: ${JSON.stringify(createStoreDto)}`);
+
+    // Validação extra de segurança
+    if (!createStoreDto.seller_id) {
+      throw new InternalServerErrorException('O seller_id chegou VAZIO no backend!');
+    }
 
     const generatedSlug = createStoreDto.name
       .toLowerCase()
@@ -32,13 +44,14 @@ export class StoresService {
       .single(); 
 
     if (error) {
+      this.logger.error(`Erro ao inserir no Supabase: ${error.message}`);
       throw new InternalServerErrorException(`Erro no Supabase: ${error.message}`);
     }
 
+    this.logger.log(`Loja criada com sucesso! ID: ${data.id}`);
     return data;
   }
 
-  // 👇 AQUI ESTÁ A CORREÇÃO QUE VAI FAZER O CARROSSEL FUNCIONAR
   async findAll() {
     const supabase = this.supabaseService.getClient();
 
@@ -57,7 +70,6 @@ export class StoresService {
     return `This action returns a #${id} store`;
   }
 
-  // 👇 AQUI ESTÁ A CORREÇÃO QUE SALVA AS IMAGENS E TEXTOS
   async update(id: string, updateStoreDto: UpdateStoreDto) {
     const supabase = this.supabaseService.getClient();
 
@@ -85,4 +97,4 @@ export class StoresService {
   remove(id: string) {
     return `This action removes a #${id} store`;
   }
-} 
+}
