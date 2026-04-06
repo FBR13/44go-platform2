@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
+// 1. Tipagem ajustada para refletir possíveis valores ausentes da API
 type Product = {
   id: string;
   store_id: string;
-  name: string;
-  price: number;
-  image_url: string | null;
-  category: string | null;
+  name?: string | null;
+  price?: number | string | null;
+  image_url?: string | null;
+  category?: string | null;
 };
 
 function useDebouncedValue<T>(value: T, delay: number): T {
@@ -42,10 +43,12 @@ export default function ProductsPage() {
       const qs = params.toString();
       const url = `${apiUrl('/products')}${qs ? `?${qs}` : ''}`;
       const res = await fetch(url);
+      
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || 'Não foi possível carregar os produtos.');
       }
+      
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -75,11 +78,18 @@ export default function ProductsPage() {
     })();
   }, []);
 
-  const formatPrice = (n: number) =>
-    new Intl.NumberFormat('pt-BR', {
+  // 2. Função de formatação blindada contra NaN
+  const formatPrice = (n?: number | string | null) => {
+    if (n === null || n === undefined) return 'Preço indisponível';
+    
+    const num = Number(n);
+    if (isNaN(num)) return 'Preço indisponível';
+
+    return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-    }).format(Number(n));
+    }).format(num);
+  };
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -165,7 +175,7 @@ export default function ProductsPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={p.image_url}
-                      alt=""
+                      alt={p.name || 'Imagem do produto'}
                       className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                     />
                   ) : (
@@ -180,8 +190,9 @@ export default function ProductsPage() {
                   )}
                 </div>
                 <div className="p-4 flex flex-col flex-1">
+                  {/* 3. Fallback aplicado ao nome do produto */}
                   <h2 className="font-semibold text-gray-900 line-clamp-2 min-h-[2.5rem]">
-                    {p.name}
+                    {p.name || 'Produto sem título'}
                   </h2>
                   <p className="mt-2 text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#fa7109] to-[#ab0029]">
                     {formatPrice(p.price)}

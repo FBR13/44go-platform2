@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Package, Clock, CheckCircle, Truck, ShoppingBag } from 'lucide-react';
+import { Package, Clock, CheckCircle, Truck, ShoppingBag, Star } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: any }> = {
   pending: { label: '⏳ Aguardando Pagamento', className: 'bg-orange-100 text-orange-800 border-orange-200', icon: Clock },
   paid: { label: '✅ Pagamento Aprovado', className: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle },
   shipped: { label: '🚚 Saiu para Entrega', className: 'bg-blue-100 text-blue-800 border-blue-200', icon: Truck },
+  delivered: { label: '📦 Pedido Entregue', className: 'bg-purple-100 text-purple-800 border-purple-200', icon: Package },
 };
 
 export default function MyOrdersPage() {
@@ -115,13 +116,23 @@ export default function MyOrdersPage() {
                     {statusInfo.label}
                   </div>
                   
-                  {/* Aqui depois vamos colocar o link pro Chat/Detalhes do Cliente */}
-                  <Link 
-                    href={`/orders/${order.id}`}
-                    className="text-sm font-bold text-[#fa7109] hover:underline"
-                  >
-                    Acompanhar &rarr;
-                  </Link>
+                  {/* Se estiver entregue, chama pra avaliar. Se não, só acompanha. */}
+                  {order.status === 'delivered' ? (
+                    <Link 
+                      href={`/orders/${order.id}`}
+                      className="text-sm font-bold text-purple-700 hover:text-purple-800 hover:underline flex items-center gap-1.5"
+                    >
+                      <Star className="w-4 h-4 fill-purple-700" />
+                      Avaliar Produtos
+                    </Link>
+                  ) : (
+                    <Link 
+                      href={`/orders/${order.id}`}
+                      className="text-sm font-bold text-[#fa7109] hover:underline"
+                    >
+                      Acompanhar &rarr;
+                    </Link>
+                  )}
                 </div>
 
               </div>

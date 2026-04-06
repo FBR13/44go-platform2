@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { useAuth } from '@/context/AuthContext'; // <-- Importando o usuário
-import { supabase } from '@/lib/supabase'; // <-- Importando o banco
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 interface ProductModalProps {
   product: any;
@@ -13,7 +14,8 @@ interface ProductModalProps {
 }
 
 export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
-  const { user } = useAuth(); // Pegando quem está logado
+  const { user } = useAuth();
+  const router = useRouter();
   const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
@@ -24,20 +26,29 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
 
   if (!isOpen || !product) return null;
 
-  // A MÁGICA DO CARRINHO ACONTECE AQUI
-  const handleAddToCart = async () => {
+  // A MÁGICA DO CARRINHO BLINDADA
+  const handleAddToCart = async (): Promise<boolean> => {
     if (!user) {
       toast.error('Você precisa fazer login para comprar! 🔐');
-      return;
+      router.push('/auth/login');
+      return false;
+    }
+
+    if (!product.store_id) {
+      toast.error('Erro: Produto sem loja vinculada.');
+      return false;
     }
 
     setIsAdding(true);
 
     try {
-      // 1. Verifica se o cliente já tem um carrinho aberto NESSA loja
+      // 1. Pega o preço correto (tenta base_price, senão usa price, senão 0)
+      const unitPrice = Number(product.base_price || product.price || 0);
+
+      // 2. Verifica se o cliente já tem um carrinho aberto NESSA loja
       let { data: cart, error: cartError } = await supabase
         .from('orders')
-        .select('*')
+        .select('id')
         .eq('customer_id', user.id)
         .eq('store_id', product.store_id)
         .eq('status', 'cart')
@@ -45,55 +56,79 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
 
       if (cartError) throw cartError;
 
-      // 2. Se não tiver um carrinho, a gente cria um novo pedido com status 'cart'
-      if (!cart) {
+      let cartId = cart?.id;
+
+      // 3. Se não tiver um carrinho, cria um novo
+      if (!cartId) {
         const { data: newCart, error: newCartError } = await supabase
           .from('orders')
           .insert({
             customer_id: user.id,
             store_id: product.store_id,
             status: 'cart',
-            total_amount: 0
+            total_amount: 0 // Começa zerado, a gente calcula na hora de exibir
           })
-          .select()
+          .select('id')
           .single();
 
         if (newCartError) throw newCartError;
-        cart = newCart;
+        cartId = newCart.id;
       }
 
-      // 3. Adiciona o produto dentro daquele carrinho (order_items)
-      const { error: itemError } = await supabase
+      // 4. Verifica se o produto já está NESSE carrinho
+      const { data: existingItem } = await supabase
         .from('order_items')
-        .insert({
-          order_id: cart.id,
-          product_id: product.id,
-          unit_price: product.base_price,
-          quantity: 1
-        });
+        .select('id, quantity')
+        .eq('order_id', cartId)
+        .eq('product_id', product.id)
+        .maybeSingle();
 
-      if (itemError) {
-        // Se der erro de item duplicado, você pode tratar depois para só somar +1 na quantidade
-        throw itemError;
+      if (existingItem) {
+        // Se já existe, apenas soma +1 na quantidade
+        const { error: updateError } = await supabase
+          .from('order_items')
+          .update({ quantity: existingItem.quantity + 1 })
+          .eq('id', existingItem.id);
+        
+        if (updateError) throw updateError;
+      } else {
+        // Se não existe, insere o item novo
+        const { error: insertError } = await supabase
+          .from('order_items')
+          .insert({
+            order_id: cartId,
+            product_id: product.id,
+            unit_price: unitPrice,
+            quantity: 1
+          });
+        
+        if (insertError) throw insertError;
       }
 
       toast.success('Produto adicionado ao carrinho! 🛒');
       
+      // DISPARA UM AVISO GLOBAL PARA O HEADER ATUALIZAR O NÚMERO DO CARRINHO!
+      window.dispatchEvent(new Event('cart-updated'));
+      
+      return true;
     } catch (error: any) {
-      console.error(error);
-      toast.error('Erro ao adicionar ao carrinho: ' + error.message);
+      console.error("Erro no carrinho:", error);
+      toast.error('Não foi possível adicionar ao carrinho.');
+      return false;
     } finally {
       setIsAdding(false);
-      onClose(); // Fecha o modal após adicionar
+      onClose(); // Fecha o modal
     }
   };
 
-  const handleBuyNow = () => {
-    // Para comprar agora, podemos só adicionar ao carrinho e redirecionar direto pra tela de checkout
-    handleAddToCart().then(() => {
-      toast.success('Redirecionando para o pagamento... 💳');
-      // router.push('/checkout'); -> Faremos isso depois!
-    });
+  const handleBuyNow = async () => {
+    // Só redireciona se a função de adicionar retornar TRUE (sucesso)
+    const success = await handleAddToCart();
+    if (success) {
+      // Como o carrinho no DB não tem página de checkout unificada ainda, 
+      // podemos mandar o usuário pra tela de compras para ele ver o pedido criado
+      router.push('/orders'); 
+    }
   };
 
   return (
@@ -129,7 +164,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
           
           <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-100">
             <p className="text-3xl font-black text-[#fa7109]">
-              R$ {Number(product.base_price || product.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {Number(product.base_price || product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
             <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium">
               Estoque: {product.stock_quantity ?? 'N/A'}

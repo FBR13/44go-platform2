@@ -4,35 +4,30 @@ import Link from 'next/link';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { SectionContainer } from '@/components/SectionContainer';
-import { CategoryItem } from '@/components/CategoryItem';
 import { ProductCard } from '@/components/ProductCard';
 import { useAuth } from '@/context/AuthContext';
 import { CATEGORIES, DAILY_OFFERS } from '@/lib/mock-data';
 import { StoreCarousel } from '@/components/StoreCarousel';
-import { apiUrl } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { ShoppingBag, TrendingUp, Sparkles } from 'lucide-react';
 
-// O conteúdo real da página fica aqui dentro para o Next.js não reclamar do useSearchParams
 function HomeContent() {
   const { user } = useAuth();
   const router = useRouter(); 
-  
-  // Lê a pesquisa digitada lá no Header!
   const searchParams = useSearchParams();
   const searchTerm = searchParams.get('q') || '';
 
-  const [realProducts, setRealProducts] = useState([]);
+  const [realProducts, setRealProducts] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
-  const [stores, setStores] = useState([]);
+  const [stores, setStores] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchProducts() {
       try {
-        const response = await fetch(apiUrl('/products'));
-        if (response.ok) {
-          const data = await response.json();
-          setRealProducts(data);
-        }
+        const { data, error } = await supabase.from('products').select('*');
+        if (error) throw error;
+        setRealProducts(data || []);
       } catch (error) {
         console.error("Erro ao carregar produtos:", error);
       } finally {
@@ -42,11 +37,9 @@ function HomeContent() {
 
     async function fetchStores() {
       try {
-        const response = await fetch(apiUrl('/stores'));
-        if (response.ok) {
-          const data = await response.json();
-          setStores(data.filter((s: any) => s.banner_url));
-        }
+        const { data, error } = await supabase.from('stores').select('*');
+        if (error) throw error;
+        setStores(data?.filter((s: any) => s.banner_url) || []);
       } catch (error) {
         console.error("Erro ao carregar lojas:", error);
       }
@@ -56,158 +49,208 @@ function HomeContent() {
     fetchStores();
   }, []);
 
-  // Lógica combinada blindada: Filtra por nome (da URL) E por categoria clicada
   const filteredProducts = realProducts.filter((product: any) => {
-    // 1. Pega o título, garante que é texto, joga pra minúsculo e remove espaços extras
     const productTitle = (product.title || product.name || '').toLowerCase();
     const search = searchTerm.toLowerCase().trim();
-
-    // 2. Verifica se o que foi digitado existe dentro do título do produto
     const matchesSearch = productTitle.includes(search);
-    
-    // 3. Verifica a categoria
     const matchesCategory = selectedCategory ? product.category === selectedCategory : true;
-
     return matchesSearch && matchesCategory;
   });
 
   return (
-    <div className="flex flex-col min-h-screen -mt-4 sm:-mt-8">
+    // Fundo da página levemente cinza para destacar os cards brancos
+    <div className="flex flex-col min-h-screen bg-gray-50/50 -mt-4 sm:-mt-8">
 
-      {/* HERO SECTION - Mais limpa, sem a barra de pesquisa gigante */}
-      <section className="relative pt-12 sm:pt-20 pb-12 sm:pb-16 px-4 text-center">
+      {/* ========================================================
+          1. HERO SECTION (Fundo Branco, Curvado embaixo)
+          ======================================================== */}
+      <section className="relative bg-white pt-16 sm:pt-24 pb-20 sm:pb-28 px-4 text-center rounded-b-[2.5rem] sm:rounded-b-[4rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] z-10">
         <div className="max-w-4xl mx-auto flex flex-col items-center">
 
-          <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-orange-50 border border-orange-100 text-[#fa7109] text-xs sm:text-sm font-medium mb-6 sm:mb-8 shadow-sm">
-            <span className="animate-pulse">🚀</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-50 border border-orange-100/50 text-[#fa7109] text-xs sm:text-sm font-bold tracking-wide mb-6 sm:mb-8 transition-transform hover:scale-105 cursor-default">
+            <Sparkles className="w-4 h-4" />
             Compre direto dos lojistas da região da 44
           </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-gray-900 mb-4 sm:mb-6 tracking-tight leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-black text-gray-900 mb-6 tracking-tight leading-[1.1]">
             O seu <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#fa7109] to-[#ab0029]">marketplace</span> local.
           </h1>
 
-          <p className="text-base sm:text-xl text-gray-600 mb-8 sm:mb-10 max-w-2xl mx-auto leading-relaxed px-2 sm:px-0">
+          <p className="text-base sm:text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed px-4 font-medium">
             Compre dos melhores comércios da sua região ou crie a sua própria loja virtual em poucos minutos. O 44Go conecta você a tudo.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center w-full sm:w-auto px-4 sm:px-0">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center w-full sm:w-auto px-4 sm:px-0">
             {!user ? (
-              <Link href="/auth/register" className="w-full sm:w-auto bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-8 py-3.5 rounded-full text-base sm:text-lg font-medium hover:opacity-90 transition-opacity shadow-lg shadow-orange-500/20">
+              <Link href="/auth/register" className="w-full sm:w-auto bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-8 py-4 rounded-2xl text-base sm:text-lg font-bold hover:scale-[1.02] hover:shadow-xl hover:shadow-orange-500/20 transition-all flex items-center justify-center gap-2">
                 Criar minha conta
               </Link>
             ) : (
-              <Link href="/dashboard" className="w-full sm:w-auto bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-8 py-3.5 rounded-full text-base sm:text-lg font-medium hover:opacity-90 transition-opacity shadow-lg shadow-orange-500/20">
+              <Link href="/dashboard" className="w-full sm:w-auto bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-8 py-4 rounded-2xl text-base sm:text-lg font-bold hover:scale-[1.02] hover:shadow-xl hover:shadow-orange-500/20 transition-all flex items-center justify-center gap-2">
                 Ir para meu Painel
               </Link>
             )}
-
-            <Link href="/products" className="w-full sm:w-auto bg-white text-gray-900 border border-gray-300 px-8 py-3.5 rounded-full text-base sm:text-lg font-medium hover:bg-gray-50 transition-colors shadow-sm">
+            <Link href="#produtos" className="w-full sm:w-auto bg-white text-gray-800 border-2 border-gray-200 px-8 py-4 rounded-2xl text-base sm:text-lg font-bold hover:border-[#fa7109] hover:text-[#fa7109] transition-all flex items-center justify-center gap-2">
               Explorar Produtos
             </Link>
           </div>
         </div>
       </section>
 
-      {/* CARROSSEL DE LOJAS */}
+      {/* ========================================================
+          2. CARROSSEL DE BANNERS (Sobrepondo o Hero)
+          ======================================================== */}
       {stores.length > 0 && (
-        <section className="px-2 sm:px-4 py-4 sm:py-8 max-w-7xl mx-auto w-full">
-          <StoreCarousel stores={stores} />
+        <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 -mt-12 sm:-mt-16 relative z-20">
+          <div className="rounded-[2rem] overflow-hidden shadow-2xl shadow-gray-200/50 border border-white">
+            <StoreCarousel stores={stores} />
+          </div>
         </section>
       )}
 
-      {/* CATEGORIAS CLICÁVEIS */}
-      <SectionContainer>
-        <div className="flex overflow-x-auto hide-scrollbar gap-3 sm:gap-6 pb-4 pt-2 snap-x -mx-4 px-4 sm:mx-0 sm:px-0">
+      {/* ========================================================
+          3. CATEGORIAS (Estilo App Icons)
+          ======================================================== */}
+      <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="flex items-center justify-between mb-6 px-2">
+          <h2 className="text-xl sm:text-2xl font-black text-gray-900 flex items-center gap-2">
+            O que você procura?
+          </h2>
+        </div>
+        
+        <div className="flex overflow-x-auto hide-scrollbar gap-4 sm:gap-6 pb-6 pt-2 snap-x">
           {CATEGORIES.map((category) => (
             <button 
                 key={category.id} 
                 onClick={() => setSelectedCategory(selectedCategory === category.name ? null : category.name)}
-                className={`flex-shrink-0 flex flex-col items-center gap-2 p-3 rounded-2xl transition-all ${
-                    selectedCategory === category.name 
-                    ? 'bg-orange-50 border-2 border-[#fa7109] scale-105' 
-                    : 'bg-white border border-gray-100 hover:border-orange-200 hover:bg-orange-50/50'
-                }`}
+                className="flex-shrink-0 flex flex-col items-center gap-3 w-[100px] sm:w-[120px] group outline-none"
             >
-                <div className="w-14 h-14 bg-orange-50 rounded-full flex items-center justify-center text-2xl">
+                <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-[1.5rem] flex items-center justify-center text-4xl shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-md ${
+                    selectedCategory === category.name 
+                    ? 'bg-gradient-to-br from-[#fa7109] to-[#ab0029] text-white shadow-orange-500/30' 
+                    : 'bg-white border border-gray-100 text-gray-700'
+                }`}>
                     {category.icon}
                 </div>
-                <span className={`text-xs font-medium ${selectedCategory === category.name ? 'text-[#fa7109]' : 'text-gray-600'}`}>
+                <span className={`text-xs sm:text-sm font-bold text-center transition-colors ${selectedCategory === category.name ? 'text-[#fa7109]' : 'text-gray-600 group-hover:text-gray-900'}`}>
                     {category.name}
                 </span>
             </button>
           ))}
         </div>
-      </SectionContainer>
+      </section>
 
-      {/* OFERTAS DO DIA */}
-      <SectionContainer
-        title="Ofertas do Dia 🔥"
-        subtitle="Preços especiais com tempo limitado"
-        className="bg-gray-50/80 rounded-2xl sm:rounded-3xl mx-2 sm:mx-6 lg:mx-8 my-6 sm:my-8 border border-gray-100 p-4 sm:p-0"
-      >
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-          {DAILY_OFFERS.map((product) => (
-            <ProductCard key={product.id} product={product as any} />
-          ))}
+      {/* ========================================================
+          4. OFERTAS DO DIA (Container com Fundo Dinâmico)
+          ======================================================== */}
+      <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 mb-12 sm:mb-16">
+        <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-[2.5rem] p-6 sm:p-10 border border-orange-100/50 shadow-sm relative overflow-hidden">
+          {/* Elemento decorativo de fundo */}
+          <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+            <TrendingUp className="w-64 h-64 text-[#fa7109]" />
+          </div>
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="bg-white p-2.5 rounded-xl shadow-sm text-[#fa7109]">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Ofertas do Dia 🔥</h2>
+                <p className="text-sm font-medium text-[#fa7109]">Preços especiais com tempo limitado</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {DAILY_OFFERS.map((product) => (
+                <div key={product.id} className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow duration-300">
+                  <ProductCard product={product as any} />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </SectionContainer>
+      </section>
 
-      {/* PRODUTOS EM DESTAQUE (Agora usando filteredProducts) */}
-      <SectionContainer
-        title={searchTerm ? `Resultados para "${searchTerm}"` : selectedCategory ? `Itens de ${selectedCategory}` : "Destaques da Região"}
-        subtitle={searchTerm || selectedCategory ? `${filteredProducts.length} produto(s) encontrado(s)` : "Os itens reais recém-postados pelos lojistas"}
-      >
-        {loadingProducts ? (
-          <div className="flex justify-center py-10">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[#fa7109]"></div>
+      {/* ========================================================
+          5. VITRINE GERAL DE PRODUTOS
+          ======================================================== */}
+      <div id="produtos" className="pb-20">
+        <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+          
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                <ShoppingBag className="w-7 h-7 text-[#fa7109]" />
+                {searchTerm ? `Resultados para "${searchTerm}"` : selectedCategory ? `Itens de ${selectedCategory}` : "Destaques da Região"}
+              </h2>
+              <p className="text-gray-500 mt-1 font-medium">
+                {searchTerm || selectedCategory ? `${filteredProducts.length} produto(s) encontrado(s)` : "As novidades recém-postadas pelos lojistas"}
+              </p>
+            </div>
+            
+            {(searchTerm || selectedCategory) && (
+               <button 
+                onClick={() => {
+                  setSelectedCategory(null);
+                  router.push('/');
+                }}
+                className="text-sm font-bold text-[#fa7109] bg-orange-50 px-4 py-2 rounded-xl hover:bg-orange-100 transition-colors w-fit"
+               >
+                 Limpar Filtros ✕
+               </button>
+            )}
           </div>
-        ) : filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-            {filteredProducts.map((product: any) => (
-              <ProductCard
-                key={product.id}
-                product={product} // <-- A MÁGICA ACONTECE AQUI! Passando o produto inteiro.
-              />
-            ))}
-          </div>
-        ) : (
-          // Interface melhorada caso a pesquisa não retorne nada
-          <div className="text-center py-16 sm:py-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 mx-4 sm:mx-0">
-            <span className="text-5xl mb-4 block">🔍</span>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Nenhum produto encontrado</h3>
-            <p className="text-gray-500 mb-6 max-w-md mx-auto">
-              Não encontramos nenhum item com o nome <strong className="text-gray-800">"{searchTerm}"</strong>{selectedCategory && ` na categoria ${selectedCategory}`}.
-            </p>
-            <button 
-              onClick={() => {
-                setSelectedCategory(null);
-                router.push('/');
-              }}
-              className="bg-white text-[#fa7109] border border-[#fa7109] px-6 py-2.5 rounded-full font-medium hover:bg-orange-50 transition-colors shadow-sm"
+
+          {loadingProducts ? (
+            <div className="flex justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#fa7109]"></div>
+            </div>
+          ) : filteredProducts.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {filteredProducts.map((product: any) => (
+                <div key={product.id} className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow duration-300">
+                  <ProductCard product={product} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-20 bg-white rounded-[2.5rem] border border-gray-100 shadow-sm mx-auto max-w-3xl">
+              <span className="text-6xl mb-4 block">🔍</span>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhum produto encontrado</h3>
+              <p className="text-gray-500 mb-8 max-w-md mx-auto text-lg">
+                Não encontramos itens com o nome <strong className="text-gray-800">"{searchTerm}"</strong>{selectedCategory && ` na categoria ${selectedCategory}`}.
+              </p>
+              <button 
+                onClick={() => {
+                  setSelectedCategory(null);
+                  router.push('/');
+                }}
+                className="bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white px-8 py-3.5 rounded-2xl font-bold hover:scale-105 transition-all shadow-md"
+              >
+                Ver todo o catálogo
+              </button>
+            </div>
+          )}
+
+          <div className="mt-12 sm:mt-16 text-center">
+            <Link
+              href="/products"
+              className="inline-flex items-center justify-center bg-white text-gray-900 border border-gray-200 px-10 py-4 rounded-2xl text-base font-bold hover:border-[#fa7109] hover:text-[#fa7109] transition-all shadow-sm w-full sm:w-auto"
             >
-              Limpar filtros e ver tudo
-            </button>
+              Carregar mais produtos
+            </Link>
           </div>
-        )}
+        </section>
+      </div>
 
-        <div className="mt-8 sm:mt-12 text-center px-4 sm:px-0">
-          <Link
-            href="/products"
-            className="flex sm:inline-flex items-center justify-center bg-white text-[#fa7109] border-2 border-[#fa7109]/20 px-8 py-3 rounded-full text-base font-medium hover:bg-orange-50/50 hover:border-[#fa7109] transition-all w-full sm:w-auto"
-          >
-            Ver todos os produtos
-          </Link>
-        </div>
-      </SectionContainer>
     </div>
   );
 }
 
-// O Next.js exige que páginas que leem parâmetros da URL sejam envolvidas no Suspense
 export default function Home() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-500">Carregando a página...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-500"><span className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#fa7109]"></span></div>}>
       <HomeContent />
     </Suspense>
   );

@@ -1,183 +1,138 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { Send, ArrowLeft, Loader2, Store } from 'lucide-react';
 import { toast } from 'sonner';
+import { Package, Store, CheckCircle, Clock, Truck, MessageCircle } from 'lucide-react';
 
-export default function CustomerChatPage() {
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any; description: string }> = {
+  pending: { label: 'Aguardando Pagamento', color: 'text-orange-700 bg-orange-100', icon: Clock, description: 'O lojista está aguardando o seu pagamento.' },
+  paid: { label: 'Pagamento Aprovado', color: 'text-green-700 bg-green-100', icon: CheckCircle, description: 'Pagamento confirmado! O lojista está preparando seu pedido.' },
+  shipped: { label: 'Saiu para Entrega', color: 'text-blue-700 bg-blue-100', icon: Truck, description: 'Seu pedido já está a caminho do endereço de entrega.' },
+};
+
+export default function CustomerOrderDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   
-  const [messages, setMessages] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [order, setOrder] = useState<any>(null);
+  const [seller, setSeller] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
-  const [sellerInfo, setSellerInfo] = useState<any>(null);
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const formatPrice = (n: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(n));
 
   useEffect(() => {
     if (authLoading || !user) return;
 
-    async function fetchChatData() {
+    async function fetchOrderDetails() {
       try {
         const { data: orderData, error: orderError } = await supabase
           .from('orders')
-          .select('stores ( seller_id )')
+          .select(`*, stores ( seller_id ), order_items ( id, quantity, unit_price, products ( title, image_url ) )`)
           .eq('id', params.id)
           .eq('customer_id', user!.id)
           .single();
 
-        if (orderError) throw orderError;
+        if (orderError || !orderData) throw new Error('Pedido não encontrado.');
+        setOrder(orderData);
 
-        // 👇 CORREÇÃO DO ERRO DO TYPESCRIPT AQUI 👇
         const store = Array.isArray(orderData.stores) ? orderData.stores[0] : orderData.stores;
 
         if (store?.seller_id) {
           const { data: sellerData } = await supabase
             .from('users')
-            .select('full_name')
+            .select('full_name, phone')
             .eq('id', store.seller_id)
             .single();
           setSellerInfo(sellerData);
         }
-
-        const { data: msgs, error: msgError } = await supabase
-          .from('order_messages')
-          .select('*')
-          .eq('order_id', params.id)
-          .order('created_at', { ascending: true });
-
-        if (msgError) throw msgError;
-        setMessages(msgs || []);
-
       } catch (error) {
-        console.error(error);
-        toast.error('Erro ao carregar o chat.');
-        router.push(`/orders/${params.id}`);
+        toast.error('Não foi possível carregar os detalhes do pedido.');
+        router.push('/orders');
       } finally {
         setIsLoading(false);
       }
     }
 
-    fetchChatData();
-
-    const channel = supabase
-      .channel('customer-chat-room')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'order_messages', filter: `order_id=eq.${params.id}` },
-        (payload) => {
-          setMessages((current) => [...current, payload.new]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    fetchOrderDetails();
   }, [user, authLoading, params.id, router]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !user) return;
+  if (isLoading || authLoading) return <div className="min-h-[60vh] flex items-center justify-center"><span className="animate-spin rounded-full h-10 w-10 border-t-2 border-[#fa7109]"></span></div>;
+  if (!order) return null;
 
-    setIsSending(true);
-    try {
-      const { error } = await supabase
-        .from('order_messages')
-        .insert({
-          order_id: params.id,
-          sender_id: user.id,
-          content: newMessage.trim(),
-        });
-
-      if (error) throw error;
-      setNewMessage('');
-    } catch (error) {
-      console.error(error);
-      toast.error('Não foi possível enviar a mensagem.');
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  if (isLoading || authLoading) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-[#fa7109]" /></div>;
-  }
+  const statusInfo = STATUS_CONFIG[order.status] || { label: order.status, color: 'text-gray-700 bg-gray-100', icon: Package, description: '' };
+  const StatusIcon = statusInfo.icon;
+  const shortId = order.id.split('-')[0].toUpperCase();
+  const calculatedTotal = order.order_items?.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0) || 0;
 
   return (
-    <div className="max-w-3xl mx-auto h-[calc(100vh-80px)] flex flex-col bg-gray-50/50 p-4 sm:p-6">
-      <div className="bg-white px-6 py-4 rounded-t-2xl border border-gray-200 shadow-sm flex items-center justify-between z-10">
-        <div className="flex items-center gap-4">
-          <Link href={`/orders/${params.id}`} className="text-gray-400 hover:text-[#fa7109] transition-colors">
-            <ArrowLeft className="w-6 h-6" />
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 py-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <Link href="/orders" className="text-sm font-medium text-gray-500 hover:text-[#fa7109] transition-colors mb-2 inline-block">
+            &larr; Voltar para Minhas Compras
           </Link>
-          <div>
-            <h1 className="font-bold text-gray-900 text-lg flex items-center gap-2">
-              <Store className="w-5 h-5 text-gray-500" />
-              {sellerInfo?.full_name || 'Lojista'}
-            </h1>
-            <p className="text-xs text-green-600 flex items-center gap-1 font-medium">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              Atendimento Online
-            </p>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-gray-900">Pedido #{shortId}</h1>
+          <p className="text-sm text-gray-500 mt-1">Realizado em {new Date(order.created_at).toLocaleString('pt-BR')}</p>
+        </div>
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold border shadow-sm ${statusInfo.color}`}>
+          <StatusIcon className="w-5 h-5" />
+          {statusInfo.label}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white border-x border-gray-200 scroll-smooth">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-3">
-            <Store className="w-12 h-12 opacity-20" />
-            <p className="text-center px-4">Alguma dúvida sobre a entrega? <br/>Mande uma mensagem para o lojista!</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2"><Package className="w-5 h-5 text-[#fa7109]" /> Produtos Comprados</h2>
+            </div>
+            <ul className="divide-y divide-gray-100">
+              {order.order_items?.map((item: any) => (
+                <li key={item.id} className="p-5 flex gap-4 items-center">
+                  <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
+                    {item.products?.image_url ? <img src={item.products.image_url} alt="" className="w-full h-full object-cover" /> : <Package className="w-full h-full p-4 text-gray-300" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 truncate">{item.products?.title}</p>
+                    <p className="text-sm text-gray-500">Qtd: {item.quantity}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-gray-900">{formatPrice(item.unit_price * item.quantity)}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-        ) : (
-          messages.map((msg) => {
-            const isMe = msg.sender_id === user?.id;
-            return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl ${isMe ? 'bg-[#fa7109] text-white rounded-br-sm shadow-md shadow-orange-500/20' : 'bg-gray-100 text-gray-800 rounded-bl-sm border border-gray-200'}`}>
-                  <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                  <span className={`text-[10px] mt-1 block ${isMe ? 'text-orange-200' : 'text-gray-400'}`}>
-                    {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              </div>
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+        </div>
 
-      <div className="bg-white p-4 rounded-b-2xl border border-gray-200 shadow-sm z-10">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Digite sua mensagem..."
-            className="flex-1 bg-gray-100 border-transparent focus:border-[#fa7109] focus:ring-2 focus:ring-orange-500/20 rounded-xl px-4 py-3 outline-none transition-all"
-            disabled={isSending}
-          />
-          <button type="submit" disabled={!newMessage.trim() || isSending} className="bg-[#fa7109] hover:bg-[#e06300] text-white p-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[50px]">
-            {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-          </button>
-        </form>
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4 pb-3 border-b border-gray-100"><Store className="w-5 h-5 text-[#fa7109]" /> Dados da Loja</h2>
+            
+            {/* 👇 O BOTÃO QUE ABRE A BOLINHA FLUTUANTE 👇 */}
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id } }))}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Falar com o Lojista
+              </button>
+            </div>
+
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
+function setSellerInfo(sellerData: any) {
+    throw new Error('Function not implemented.');
 }
