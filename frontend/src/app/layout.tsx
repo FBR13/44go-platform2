@@ -1,10 +1,13 @@
+// D:\.Documentos\.Projeto\44go-platform\frontend\src\app\layout.tsx
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-import { Header } from '@/components/Header';
+// 👇 AQUI ESTÁ O SEGREDO: Puxar o MainHeader em vez do Header antigo!
+import { MainHeader } from './entregador/components/MainHeader';
 import { Toaster } from 'sonner';
-import { FloatingChat } from '@/components/FloatingChat'; // <-- Importamos o Chat Flutuante
+import { FloatingChat } from '@/components/FloatingChat';
+import { GlobalNotificationManager } from '@/components/GlobalNotificationManager';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -22,7 +25,11 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          <Header />
+          <GlobalNotificationManager />
+
+          {/* 👇 AGORA SIM ELE VAI DECIDIR SE MOSTRA A MOTO OU O CARRINHO */}
+          <MainHeader />
+
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {children}
           </main>

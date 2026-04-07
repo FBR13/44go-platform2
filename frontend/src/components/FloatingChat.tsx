@@ -132,10 +132,10 @@ export function FloatingChat() {
       <div className={`fixed bottom-6 right-6 z-50 w-[90vw] max-w-[400px] h-[600px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'}`}>
         
         {/* HEADER DA JANELA */}
-        <div className="bg-gray-900 text-white p-4 flex items-center justify-between shadow-md z-10">
+        <div className="bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-4 flex items-center justify-between shadow-md z-10">
           <div className="flex items-center gap-3">
             {activeOrderId && (
-              <button onClick={() => setActiveOrderId(null)} className="hover:bg-gray-800 p-1 rounded-md transition-colors">
+              <button onClick={() => setActiveOrderId(null)} className="hover:bg-#660119 p-1 rounded-md transition-colors">
                 <ArrowLeft className="w-5 h-5" />
               </button>
             )}
@@ -149,7 +149,7 @@ export function FloatingChat() {
               </p>
             </div>
           </div>
-          <button onClick={() => setIsOpen(false)} className="hover:bg-gray-800 p-1 rounded-md transition-colors">
+          <button onClick={() => setIsOpen(false)} className="hover:bg-#660119 p-1 rounded-md transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>

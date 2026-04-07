@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-import { Package, User, MapPin, Phone, Truck, CheckCircle, Clock, MessageCircle } from 'lucide-react';
+import { Package, User, MapPin, Phone, Truck, CheckCircle, Clock, MessageCircle, Bike } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   cart: { label: 'Em Carrinho', color: 'text-yellow-700 bg-yellow-100 border-yellow-200', icon: Clock },
@@ -24,6 +24,7 @@ export default function OrderDetailsPage() {
   const [customer, setCustomer] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isCallingCourier, setIsCallingCourier] = useState(false); // Adicionado estado do botão da moto
 
   const formatPrice = (n: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(n));
@@ -72,6 +73,36 @@ export default function OrderDetailsPage() {
       toast.error('Erro ao atualizar status.');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // ---> NOVA FUNÇÃO PARA CHAMAR O ENTREGADOR DA 44GO <---
+  const callCourier = async () => {
+    setIsCallingCourier(true);
+    try {
+      const deliveryFee = 10.50; // Valor fixo da entrega por enquanto
+
+      const { error: deliveryError } = await supabase
+        .from('deliveries')
+        .insert({
+          order_id: order.id,
+          delivery_fee: deliveryFee,
+          status: 'pending_acceptance',
+        });
+
+      if (deliveryError) {
+        if (deliveryError.code === '23505') {
+          throw new Error('Você já chamou um entregador para este pedido!');
+        }
+        throw deliveryError;
+      }
+
+      toast.success('Entregadores notificados! O radar deles já está apitando. 🛵');
+
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao acionar os entregadores.');
+    } finally {
+      setIsCallingCourier(false);
     }
   };
 
@@ -175,7 +206,6 @@ export default function OrderDetailsPage() {
             
             <div className="space-y-3">
               
-              {/* 👇 O BOTÃO AGORA SÓ DISPARA O EVENTO PARA ABRIR A BOLINHA 👇 */}
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id } }))}
                 className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-xl transition-all hover:scale-[1.02] shadow-md flex items-center justify-center gap-2 mb-6"
@@ -195,20 +225,47 @@ export default function OrderDetailsPage() {
                 </button>
               )}
 
+              {/* BLOCO DE LOGÍSTICA: SÓ APARECE SE O PEDIDO ESTIVER PAGO */}
               {order.status === 'paid' && (
-                <button
-                  onClick={() => handleUpdateStatus('shipped')}
-                  disabled={isUpdating}
-                  className="w-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-                >
-                  <Truck className="w-5 h-5" />
-                  Marcar como Enviado
-                </button>
+                <div className="space-y-4">
+                  {/* Opção 1: Envio Manual */}
+                  <button
+                    onClick={() => handleUpdateStatus('shipped')}
+                    disabled={isUpdating}
+                    className="w-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Truck className="w-5 h-5" />
+                    Marcar como Enviado (Manual)
+                  </button>
+
+                  {/* Opção 2: Entregador 44Go */}
+                  <div className="border-t border-gray-100 pt-4 mt-2">
+                    <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Logística 44Go</h3>
+                    
+                    <button
+                      onClick={callCourier}
+                      disabled={isCallingCourier}
+                      className="w-full bg-[#fa7109] hover:bg-[#e66607] disabled:bg-[#fa7109]/50 text-white font-black py-4 rounded-xl shadow-lg transition-transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      {isCallingCourier ? (
+                        <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></span>
+                      ) : (
+                        <>
+                          <Bike className="w-6 h-6 animate-bounce" />
+                          Chamar Entregador
+                        </>
+                      )}
+                    </button>
+                    <p className="text-xs text-gray-500 text-center mt-3 font-medium">
+                      Taxa de entrega estimada: R$ 10,50
+                    </p>
+                  </div>
+                </div>
               )}
 
               {order.status === 'shipped' && (
                 <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-200 text-gray-600 font-medium mt-4">
-                  Pedido concluído. ✅
+                  Pedido em trânsito/concluído. ✅
                 </div>
               )}
             </div>
