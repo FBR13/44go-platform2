@@ -10,7 +10,7 @@ async function bootstrap() {
     new ValidationPipe({
       transform: true,
       whitelist: true,
-      forbidNonWhitelisted: true, // Dá erro se mandarem campos que não existem no DTO
+      forbidNonWhitelisted: false, // Dá erro se mandarem campos que não existem no DTO
     }),
   );
 
