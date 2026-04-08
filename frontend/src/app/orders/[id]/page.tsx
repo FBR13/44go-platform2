@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-import { Package, Store, CheckCircle, Clock, Truck, MessageCircle, Star, X } from 'lucide-react';
+import { Package, Store, CheckCircle, Clock, Truck, MessageCircle, Star, X, Bike } from 'lucide-react'; // <-- Adicionado o ícone Bike!
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any; description: string }> = {
   pending: { label: 'Aguardando Pagamento', color: 'text-orange-700 bg-orange-100', icon: Clock, description: 'O lojista está aguardando o seu pagamento.' },
@@ -90,7 +90,7 @@ export default function CustomerOrderDetailsPage() {
     fetchOrderDetails();
   }, [user, authLoading, params.id]);
 
-  // 3. EFEITO REALTIME (A MÁGICA ACONTECE AQUI)
+  // 3. EFEITO REALTIME
   useEffect(() => {
     if (!params.id) return;
 
@@ -107,11 +107,13 @@ export default function CustomerOrderDetailsPage() {
         },
         (payload) => {
           console.log('Mudança detectada no status do pedido!', payload);
-          // Atualiza o estado local com o novo status vindo do banco
           setOrder((prev: any) => ({ ...prev, status: payload.new.status }));
           
           if (payload.new.status === 'paid') {
             toast.success('Pagamento confirmado com sucesso!');
+          }
+          if (payload.new.status === 'shipped') {
+            toast.info('Seu pedido saiu para entrega! 🛵');
           }
         }
       )
@@ -186,7 +188,6 @@ export default function CustomerOrderDetailsPage() {
           <h1 className="text-2xl sm:text-3xl font-black text-gray-900">Pedido #{shortId}</h1>
           <p className="text-sm text-gray-500 mt-1">Realizado em {new Date(order.created_at).toLocaleString('pt-BR')}</p>
         </div>
-        {/* BADGE QUE AGORA ATUALIZA SOZINHO */}
         <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold border shadow-sm transition-all duration-500 ${statusInfo.color}`}>
           <StatusIcon className="w-5 h-5" />
           {statusInfo.label}
@@ -243,15 +244,31 @@ export default function CustomerOrderDetailsPage() {
             ) : (
               <p className="text-sm text-gray-500">Buscando informações da loja...</p>
             )}
-            <div className="mt-6 pt-4 border-t border-gray-100">
+            
+            {/* 👇 CAIXA DE BOTÕES DE CHAT 👇 */}
+            <div className="mt-6 pt-4 border-t border-gray-100 space-y-3">
+              
               <button
-                onClick={() => window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id } }))}
+                onClick={() => window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id, channel: 'customer_store' } }))}
                 className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 <MessageCircle className="w-5 h-5" />
-                Falar com o Lojista
+                Falar com a Loja
               </button>
+
+              {/* Botão do Entregador - Só aparece quando o pedido for 'shipped' (Saiu pra entrega) ou 'delivered' */}
+              {(order.status === 'shipped' || order.status === 'delivered') && (
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id, channel: 'courier_customer' } }))}
+                  className="w-full bg-[#fa7109] hover:bg-[#e66607] text-white font-bold py-3.5 rounded-xl shadow-md transition-transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Bike className="w-5 h-5 animate-pulse" />
+                  Falar com o Entregador
+                </button>
+              )}
             </div>
+            {/* 👆 FIM DA CAIXA DE BOTÕES 👆 */}
+
           </div>
         </div>
       </div>

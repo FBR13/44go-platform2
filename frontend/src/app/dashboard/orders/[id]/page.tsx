@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-import { Package, User, MapPin, Phone, Truck, CheckCircle, Clock, MessageCircle, Bike } from 'lucide-react';
+import { Package, User, MapPin, Phone, Truck, CheckCircle, Clock, MessageCircle, Bike, Route } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   cart: { label: 'Em Carrinho', color: 'text-yellow-700 bg-yellow-100 border-yellow-200', icon: Clock },
@@ -24,7 +24,12 @@ export default function OrderDetailsPage() {
   const [customer, setCustomer] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isCallingCourier, setIsCallingCourier] = useState(false); // Adicionado estado do botão da moto
+  const [isCallingCourier, setIsCallingCourier] = useState(false);
+
+  // Novos estados para a Lógica de Precificação de GPS
+  const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
+  const [deliveryFee, setDeliveryFee] = useState<number | null>(null);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(true);
 
   const formatPrice = (n: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(n));
@@ -34,9 +39,10 @@ export default function OrderDetailsPage() {
 
     async function fetchOrderDetails() {
       try {
+        // ATUALIZADO: Puxando o endereço da loja também (stores)
         const { data: orderData, error: orderError } = await supabase
           .from('orders')
-          .select(`*, order_items ( id, quantity, unit_price, products ( title, image_url ) )`)
+          .select(`*, stores(address), order_items ( id, quantity, unit_price, products ( title, image_url ) )`)
           .eq('id', params.id)
           .single();
 
@@ -51,6 +57,14 @@ export default function OrderDetailsPage() {
 
         setCustomer(customerData);
 
+        // DISPARA O CÁLCULO DE ROTA SE ESTIVER PAGO
+        if (orderData.status === 'paid' && customerData) {
+           const storeAddress = Array.isArray(orderData.stores) ? orderData.stores[0]?.address : orderData.stores?.address;
+           calculateRouteAndFee(storeAddress || 'Centro', customerData.address, customerData.cep);
+        } else {
+           setIsCalculatingRoute(false);
+        }
+
       } catch (error) {
         toast.error('Erro ao carregar detalhes do pedido.');
         router.push('/dashboard/orders');
@@ -61,6 +75,62 @@ export default function OrderDetailsPage() {
 
     fetchOrderDetails();
   }, [user, authLoading, params.id, router]);
+
+  // ---> NOVA FUNÇÃO: MOTOR DE CÁLCULO IFOOD <---
+  const calculateRouteAndFee = async (storeAddress: string, customerAddress: string, customerCep: string) => {
+    setIsCalculatingRoute(true);
+    try {
+      // Helper para buscar Coordenadas no OpenStreetMap (Gratuito)
+      const getCoords = async (address: string) => {
+        const query = encodeURIComponent(`${address}, Goiânia - GO`);
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+        const data = await res.json();
+        if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        return null;
+      };
+
+      const storeCoords = await getCoords(storeAddress);
+      const customerCoords = await getCoords(`${customerAddress}, ${customerCep}`);
+
+      let distanceKm = 0;
+
+      if (storeCoords && customerCoords) {
+        // Fórmula de Haversine (Distância em linha reta na esfera terrestre)
+        const R = 6371; 
+        const dLat = (customerCoords.lat - storeCoords.lat) * Math.PI / 180;
+        const dLon = (customerCoords.lon - storeCoords.lon) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(storeCoords.lat * Math.PI / 180) * Math.cos(customerCoords.lat * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        
+        // Multiplicador 1.3 para compensar o trajeto das ruas (curvas) em vez da linha reta
+        distanceKm = (R * c) * 1.3; 
+      } else {
+        // Fallback de segurança: Se a rua for muito nova e a API não achar, 
+        // aplica uma média municipal segura para não travar o app.
+        distanceKm = 4.2; 
+      }
+
+      // PRECIFICAÇÃO ESTILO IFOOD
+      // Base: R$ 5,99 (até 2km)
+      // Adicional: R$ 1,50 por km extra
+      let finalFee = 5.99;
+      if (distanceKm > 2) {
+        finalFee += (distanceKm - 2) * 1.50;
+      }
+
+      setDeliveryDistance(distanceKm);
+      setDeliveryFee(finalFee);
+
+    } catch (error) {
+      console.error("Erro ao calcular", error);
+      setDeliveryDistance(4.2);
+      setDeliveryFee(9.29); // Valor fallback
+    } finally {
+      setIsCalculatingRoute(false);
+    }
+  };
 
   const handleUpdateStatus = async (newStatus: string) => {
     setIsUpdating(true);
@@ -76,17 +146,15 @@ export default function OrderDetailsPage() {
     }
   };
 
-  // ---> NOVA FUNÇÃO PARA CHAMAR O ENTREGADOR DA 44GO <---
   const callCourier = async () => {
+    if (!deliveryFee) return;
     setIsCallingCourier(true);
     try {
-      const deliveryFee = 10.50; // Valor fixo da entrega por enquanto
-
       const { error: deliveryError } = await supabase
         .from('deliveries')
         .insert({
           order_id: order.id,
-          delivery_fee: deliveryFee,
+          delivery_fee: deliveryFee, // Agora usa o valor dinâmico!
           status: 'pending_acceptance',
         });
 
@@ -207,7 +275,7 @@ export default function OrderDetailsPage() {
             <div className="space-y-3">
               
               <button
-                onClick={() => window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id } }))}
+                onClick={() => window.dispatchEvent(new CustomEvent('open-chat', { detail: { orderId: order.id, channel: 'customer_store' } }))}
                 className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-xl transition-all hover:scale-[1.02] shadow-md flex items-center justify-center gap-2 mb-6"
               >
                 <MessageCircle className="w-5 h-5" />
@@ -225,10 +293,9 @@ export default function OrderDetailsPage() {
                 </button>
               )}
 
-              {/* BLOCO DE LOGÍSTICA: SÓ APARECE SE O PEDIDO ESTIVER PAGO */}
+              {/* BLOCO DE LOGÍSTICA */}
               {order.status === 'paid' && (
                 <div className="space-y-4">
-                  {/* Opção 1: Envio Manual */}
                   <button
                     onClick={() => handleUpdateStatus('shipped')}
                     disabled={isUpdating}
@@ -238,27 +305,39 @@ export default function OrderDetailsPage() {
                     Marcar como Enviado (Manual)
                   </button>
 
-                  {/* Opção 2: Entregador 44Go */}
+                  {/* Logística 44Go Inteligente */}
                   <div className="border-t border-gray-100 pt-4 mt-2">
-                    <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Logística 44Go</h3>
+                    <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-1"><Route className="w-3 h-3"/> Logística 44Go</h3>
                     
-                    <button
-                      onClick={callCourier}
-                      disabled={isCallingCourier}
-                      className="w-full bg-[#fa7109] hover:bg-[#e66607] disabled:bg-[#fa7109]/50 text-white font-black py-4 rounded-xl shadow-lg transition-transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-                    >
-                      {isCallingCourier ? (
-                        <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></span>
-                      ) : (
-                        <>
-                          <Bike className="w-6 h-6 animate-bounce" />
-                          Chamar Entregador
-                        </>
-                      )}
-                    </button>
-                    <p className="text-xs text-gray-500 text-center mt-3 font-medium">
-                      Taxa de entrega estimada: R$ 10,50
-                    </p>
+                    {isCalculatingRoute ? (
+                      <div className="bg-orange-50 rounded-xl p-4 flex flex-col items-center justify-center gap-2 text-orange-600 border border-orange-100">
+                        <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-[#fa7109]"></span>
+                        <span className="text-xs font-bold uppercase">Calculando rota...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={callCourier}
+                          disabled={isCallingCourier || !deliveryFee}
+                          className="w-full bg-[#fa7109] hover:bg-[#e66607] disabled:bg-[#fa7109]/50 text-white font-black py-4 rounded-xl shadow-lg transition-transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          {isCallingCourier ? (
+                            <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></span>
+                          ) : (
+                            <>
+                              <Bike className="w-6 h-6 animate-bounce" />
+                              Chamar Entregador
+                            </>
+                          )}
+                        </button>
+                        
+                        {/* Resumo da Rota Dinâmico */}
+                        <div className="flex items-center justify-between text-xs text-gray-500 mt-3 font-medium bg-gray-50 p-2 rounded-lg border border-gray-100">
+                          <span>Trajeto estimado: <strong className="text-gray-700">{deliveryDistance?.toFixed(1)} km</strong></span>
+                          <span>Custo: <strong className="text-[#fa7109] text-sm">{formatPrice(deliveryFee || 0)}</strong></span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}

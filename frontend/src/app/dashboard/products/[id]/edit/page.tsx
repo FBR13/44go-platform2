@@ -7,55 +7,52 @@ import { useRouter, useParams } from 'next/navigation';
 import { apiUrl } from '@/lib/api';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { ArrowLeft, Camera, Package, Save, Info, Tag, Box, Zap } from 'lucide-react';
 
 export default function EditProductPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
-    const params = useParams(); 
+    const params = useParams();
     const productId = params.id;
 
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [loadingData, setLoadingData] = useState(true);
     const [error, setError] = useState('');
-    const [category, setCategory] = useState('');
 
     // Estados do Formulário
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState('');
-    const [stock, setStock] = useState('0'); 
+    const [salePrice, setSalePrice] = useState(''); // <-- NOVO: Preço de Oferta
+    const [stock, setStock] = useState('0');
     const [imageUrl, setImageUrl] = useState('');
+    const [category, setCategory] = useState('');
 
-    // 1. Carrega os dados atuais do produto ao abrir a página
     useEffect(() => {
         if (authLoading || !productId) return;
 
         async function fetchProduct() {
             try {
-                // Busca direto no Supabase para leitura rápida
                 const { data, error: pgError } = await supabase
                     .from('products')
                     .select('*')
                     .eq('id', productId)
-                    .single(); // Esperamos apenas um resultado
+                    .single();
 
-                if (pgError || !data) {
-                    throw new Error('Produto não encontrado ou você não tem permissão.');
-                }
+                if (pgError || !data) throw new Error('Produto não encontrado.');
 
-                // Preenche os estados com os dados existentes
                 setTitle(data.title);
-                setDescription(data.description || ''); // Trata nulos
-                setImageUrl(data.image_url || ''); // Trata nulos
-                
-                // Converte números do banco para string para o input
+                setDescription(data.description || '');
+                setImageUrl(data.image_url || '');
                 setPrice(data.base_price.toString());
+                setSalePrice(data.sale_price ? data.sale_price.toString() : '');
                 setStock(data.stock_quantity?.toString() || '0');
+                setCategory(data.category || '');
 
             } catch (err: any) {
-                toast.error("Erro ao carregar produto:", err);
-                setError(err.message || 'Erro ao carregar dados do produto.');
+                toast.error("Erro ao carregar produto.");
+                setError(err.message);
             } finally {
                 setLoadingData(false);
             }
@@ -64,15 +61,12 @@ export default function EditProductPage() {
         fetchProduct();
     }, [productId, authLoading]);
 
-    // 2. Função de Upload de Imagem (mesma lógica do cadastro)
     const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !user) return;
 
         try {
             setIsUploading(true);
-            setError('');
-
             const fileExt = file.name.split('.').pop();
             const fileName = `product-${user.id}-${Math.random()}.${fileExt}`;
 
@@ -87,204 +81,212 @@ export default function EditProductPage() {
                 .getPublicUrl(fileName);
 
             setImageUrl(publicUrlData.publicUrl);
+            toast.success('Imagem atualizada! ✨');
         } catch (err: any) {
-            console.error(err);
-            setError('Erro ao fazer upload da nova imagem.');
+            toast.error('Erro ao subir imagem.');
         } finally {
             setIsUploading(false);
         }
     };
 
-    // 3. Salva as alterações no Backend NestJS (usando PATCH)
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        setError('');
 
         try {
-            // Chame a rota PATCH /products/:id do seu NestJS
+            const formattedBasePrice = parseFloat(price.toString().replace(',', '.'));
+            const formattedSalePrice = salePrice && salePrice.toString().trim() !== ""
+                ? parseFloat(salePrice.toString().replace(',', '.'))
+                : null;
+
+            // Criamos o objeto que será enviado
+            const payload: any = {
+                title,
+                description,
+                base_price: formattedBasePrice,
+                stock_quantity: parseInt(stock.toString()),
+                image_url: imageUrl,
+                category,
+            };
+
+            // ATENÇÃO: Só enviamos o sale_price se ele for diferente de null
+            // Isso evita o erro 400 enquanto você não atualiza o DTO no NestJS
+            if (formattedSalePrice !== null) {
+                payload.sale_price = formattedSalePrice;
+            }
+
             const response = await fetch(apiUrl(`/products/${productId}`), {
-                method: 'PATCH', 
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    title: title,
-                    description: description,
-                    // Converte string "49,90" -> número 49.90
-                    base_price: parseFloat(price.replace(',', '.')),
-                    // Converte string "10" -> número inteiro 10
-                    stock_quantity: parseInt(stock), 
-                    image_url: imageUrl,
-                    category: category,
-                }),
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.message || 'Erro ao atualizar produto no backend.');
+                // Se o erro for "property sale_price should not exist", damos um aviso melhor
+                if (errData.message && errData.message.includes('sale_price')) {
+                    throw new Error('O servidor ainda não aceita preços de oferta. Verifique o DTO no NestJS.');
+                }
+                throw new Error(errData.message || 'Erro ao atualizar produto.');
             }
 
             toast.success('Produto atualizado com sucesso! 🚀');
-            router.push('/dashboard/products'); // Volta para a listagem
+            router.push('/dashboard/products');
 
         } catch (err: any) {
-            console.error("Erro ao salvar produto:", err);
-            setError(err.message || 'Erro de conexão com o Backend.');
+            toast.error(err.message);
         } finally {
             setIsSaving(false);
         }
     };
 
-    // Estados de carregamento da página
     if (authLoading || loadingData) {
-        return <div className="p-8 text-center text-gray-500">Carregando dados do produto...</div>;
-    }
-
-    // Se houver erro crítico ao carregar
-    if (error && !title) {
         return (
-            <div className="p-8 text-center text-red-600 bg-red-50 rounded-xl m-4 border border-red-100">
-                {error}
-                <div className="mt-4">
-                    <Link href="/dashboard/products" className="text-sm text-[#fa7109] hover:underline">
-                        Voltar para listagem
-                    </Link>
-                </div>
+            <div className="min-h-screen flex items-center justify-center">
+                <span className="animate-spin rounded-full h-10 w-10 border-t-2 border-[#fa7109]"></span>
             </div>
         );
     }
 
     return (
-        <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6">
+        <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6">
 
-            <div className="mb-6 flex items-center gap-4">
-                <Link href="/dashboard/products" className="text-gray-400 hover:text-[#fa7109] transition-colors">
-                    ← Voltar
-                </Link>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Editar Produto</h1>
+            <div className="mb-8 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Link href="/dashboard/products" className="p-2 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#fa7109] transition-all shadow-sm">
+                        <ArrowLeft size={20} />
+                    </Link>
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Editar Produto</h1>
+                        <p className="text-gray-500 text-sm">Atualize as informações e preços da sua vitrine.</p>
+                    </div>
+                </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-8">
 
-                {error && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100">
-                        {error}
-                    </div>
-                )}
-
-                {/* FOTO DO PRODUTO (Preview + Upload) */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Foto principal do produto</label>
-                    <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-                        <div className="h-40 w-40 sm:h-48 sm:w-48 bg-gray-50 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden shrink-0 group">
+                {/* CARD DE IMAGEM */}
+                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-8 items-center">
+                    <div className="relative group shrink-0">
+                        <div className="h-48 w-48 bg-gray-50 rounded-3xl flex items-center justify-center border-2 border-dashed border-gray-200 overflow-hidden relative transition-all group-hover:border-[#fa7109]/50">
                             {imageUrl ? (
                                 <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
                             ) : (
-                                <div className="text-center p-4">
-                                    <span className="text-4xl block mb-2">📷</span>
-                                    <span className="text-xs text-gray-400">Clique para adicionar</span>
-                                </div>
+                                <Camera size={40} className="text-gray-300" />
                             )}
-                            {/* Overlay de hover para indicar que pode mudar a foto */}
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="text-white text-xs font-medium bg-black/50 px-3 py-1.5 rounded-full">Alterar foto</span>
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <span className="text-white text-xs font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">Alterar Foto</span>
                             </div>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleUploadImage}
-                                className="absolute inset-0 opacity-0 cursor-pointer"
-                            />
+                            <input type="file" accept="image/*" onChange={handleUploadImage} className="absolute inset-0 opacity-0 cursor-pointer" />
                         </div>
-                        <div className="text-sm text-gray-500">
-                            <p className="font-medium text-gray-900 mb-1">Dicas para uma boa foto:</p>
-                            <ul className="list-disc pl-4 space-y-1">
-                                <li>Use um fundo limpo e iluminado.</li>
-                                <li>Mostre o produto inteiro.</li>
-                                <li>Evite textos por cima da imagem.</li>
-                            </ul>
-                            {isUploading && <p className="text-[#fa7109] font-medium mt-3 animate-pulse">Enviando nova imagem...</p>}
-                        </div>
+                        {isUploading && (
+                            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-3xl">
+                                <span className="animate-spin rounded-full h-6 w-6 border-t-2 border-[#fa7109]"></span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="space-y-3">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                            <Info size={18} className="text-[#fa7109]" /> Dicas de mestre
+                        </h3>
+                        <p className="text-sm text-gray-500 leading-relaxed">
+                            Produtos com fotos em **fundo branco** ou ambientadas em **boa luz** vendem até 3x mais. Certifique-se de que a foto mostre bem os detalhes.
+                        </p>
                     </div>
                 </div>
 
-                {/* INFORMAÇÕES BÁSICAS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-gray-100">
-                    <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Produto</label>
+                {/* DADOS PRINCIPAIS */}
+                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Título do Produto</label>
                         <input
-                            type="text"
-                            value={title}
+                            required type="text" value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none"
-                            placeholder="Ex: Vestido Canelado Mid Preto"
-                            required
+                            className="w-full border border-gray-200 bg-gray-50 p-4 rounded-2xl focus:ring-2 focus:ring-[#fa7109]/20 focus:border-[#fa7109] outline-none font-medium transition-all"
+                            placeholder="Ex: Camiseta Oversized Algodão Egípcio"
                         />
                     </div>
 
-                    <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Detalhada</label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none"
                             rows={4}
-                            placeholder="Fale sobre o tecido, tamanhos disponíveis, cores..."
+                            className="w-full border border-gray-200 bg-gray-50 p-4 rounded-2xl focus:ring-2 focus:ring-[#fa7109]/20 focus:border-[#fa7109] outline-none font-medium transition-all"
+                            placeholder="Descreva o material, caimento e por que o cliente deve comprar..."
                         />
                     </div>
 
-                    {/* PREÇO E ESTOQUE LADO A LADO (Igual ao cadastro) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Preço (R$)</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
+                                <Tag size={14} /> Preço Base (R$)
+                            </label>
                             <input
-                                type="number"
-                                step="0.01"
-                                value={price}
+                                required type="text" value={price}
                                 onChange={(e) => setPrice(e.target.value)}
-                                className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none text-lg font-medium"
-                                placeholder="49.90"
-                                required
+                                className="w-full border border-gray-200 bg-gray-50 p-4 rounded-2xl focus:ring-2 focus:ring-[#fa7109]/20 focus:border-[#fa7109] outline-none font-bold text-lg"
+                                placeholder="0,00"
                             />
                         </div>
-
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Estoque Disponível</label>
+                            <label className="block text-sm font-bold text-green-600 mb-2 flex items-center gap-1">
+                                <Zap size={14} className="fill-green-600" /> Preço de Oferta (R$)
+                            </label>
                             <input
-                                type="number"
-                                value={stock}
+                                type="text" value={salePrice}
+                                onChange={(e) => setSalePrice(e.target.value)}
+                                className="w-full border border-green-100 bg-green-50/30 p-4 rounded-2xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none font-bold text-lg text-green-700"
+                                placeholder="Opcional"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
+                                <Box size={14} /> Estoque
+                            </label>
+                            <input
+                                required type="number" value={stock}
                                 onChange={(e) => setStock(e.target.value)}
-                                className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-[#fa7109] focus:outline-none text-lg font-medium"
-                                placeholder="10"
-                                min="0" // Impede números negativos no input
-                                required
+                                className="w-full border border-gray-200 bg-gray-50 p-4 rounded-2xl focus:ring-2 focus:ring-[#fa7109]/20 focus:border-[#fa7109] outline-none font-bold text-lg"
+                                min="0"
                             />
                         </div>
                     </div>
+
+                    {salePrice && parseFloat(salePrice.replace(',', '.')) < parseFloat(price.replace(',', '.')) && (
+                        <div className="p-4 bg-green-50 border border-green-100 rounded-2xl flex items-center gap-3">
+                            <div className="bg-green-500 text-white p-1 rounded-full"><Save size={14} /></div>
+                            <p className="text-sm text-green-700 font-medium">
+                                **Promoção Ativa:** O cliente verá um desconto de {Math.round(((parseFloat(price.replace(',', '.')) - parseFloat(salePrice.replace(',', '.'))) / parseFloat(price.replace(',', '.'))) * 100)}% na loja!
+                            </p>
+                        </div>
+                    )}
                 </div>
 
-                <div className="pt-4 flex flex-col sm:flex-row gap-3">
-                    {/* Botão Cancelar */}
-                    <Link 
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <Link
                         href="/dashboard/products"
-                        className="w-full sm:w-auto text-center bg-gray-100 text-gray-700 p-4 rounded-xl font-medium hover:bg-gray-200 transition-colors shadow-sm text-lg"
+                        className="flex-1 text-center bg-white border border-gray-200 text-gray-500 p-5 rounded-2xl font-bold hover:bg-gray-50 transition-all"
                     >
                         Cancelar
                     </Link>
-
-                    {/* Botão Salvar */}
                     <button
                         type="submit"
-                        disabled={isSaving || isUploading || !imageUrl}
-                        className="w-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-4 rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md text-lg flex items-center justify-center gap-2"
+                        disabled={isSaving || isUploading || !title || !price}
+                        className="flex-[2] bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white p-5 rounded-2xl font-black text-lg hover:opacity-90 transition-all shadow-xl shadow-orange-500/20 disabled:opacity-50 flex items-center justify-center gap-3"
                     >
                         {isSaving ? (
                             <>
-                                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                                <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></span>
                                 Salvando Alterações...
                             </>
-                        ) : 'Salvar Alterações'}
+                        ) : (
+                            <>
+                                <Save size={22} /> Salvar Alterações
+                            </>
+                        )}
                     </button>
                 </div>
             </form>

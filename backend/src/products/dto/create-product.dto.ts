@@ -19,6 +19,10 @@ export class CreateProductDto {
     @IsNotEmpty()
     base_price!: number;
 
+    @IsNumber()
+    @IsOptional()
+    sale_price?: number;
+
     @IsString()
     @IsOptional()
     image_url?: string;
