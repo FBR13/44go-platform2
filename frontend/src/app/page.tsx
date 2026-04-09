@@ -9,11 +9,21 @@ import { useAuth } from '@/context/AuthContext';
 import { CATEGORIES, DAILY_OFFERS } from '@/lib/mock-data';
 import { StoreCarousel } from '@/components/StoreCarousel';
 import { supabase } from '@/lib/supabase';
-import { ShoppingBag, TrendingUp, Sparkles } from 'lucide-react';
+import {
+  ShoppingBag,
+  TrendingUp,
+  Sparkles,
+  Shirt, // Masculino/Feminino
+  Smartphone, // Eletrônicos
+  Watch, // Acessórios
+  Baby, // Infantil
+  Footprints, // Calçados
+  Sparkle // Beleza
+} from 'lucide-react';
 
 function HomeContent() {
   const { user } = useAuth();
-  const router = useRouter(); 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const searchTerm = searchParams.get('q') || '';
 
@@ -112,29 +122,38 @@ function HomeContent() {
           3. CATEGORIAS (Estilo App Icons)
           ======================================================== */}
       <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        <div className="flex items-center justify-between mb-6 px-2">
-          <h2 className="text-xl sm:text-2xl font-black text-gray-900 flex items-center gap-2">
+        <div className="flex items-center justify-between mb-8 px-2">
+          <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
             O que você procura?
           </h2>
         </div>
-        
+
         <div className="flex overflow-x-auto hide-scrollbar gap-4 sm:gap-6 pb-6 pt-2 snap-x">
-          {CATEGORIES.map((category) => (
-            <button 
-                key={category.id} 
-                onClick={() => setSelectedCategory(selectedCategory === category.name ? null : category.name)}
-                className="flex-shrink-0 flex flex-col items-center gap-3 w-[100px] sm:w-[120px] group outline-none"
+          {[
+            { id: 1, name: 'Moda Feminina', icon: <Shirt className="w-8 h-8" />, color: 'text-pink-500' },
+            { id: 2, name: 'Moda Masculina', icon: <Shirt className="w-8 h-8" />, color: 'text-blue-500' },
+            { id: 3, name: 'Calçados', icon: <Footprints className="w-8 h-8" />, color: 'text-orange-500' },
+            { id: 4, name: 'Acessórios', icon: <Watch className="w-8 h-8" />, color: 'text-purple-500' },
+            { id: 5, name: 'Beleza', icon: <Sparkle className="w-8 h-8" />, color: 'text-rose-500' },
+            { id: 6, name: 'Eletrônicos', icon: <Smartphone className="w-8 h-8" />, color: 'text-cyan-500' },
+          ].map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategory(selectedCategory === category.name ? null : category.name)}
+              className="flex-shrink-0 flex flex-col items-center gap-3 w-[100px] sm:w-[120px] group outline-none snap-start"
             >
-                <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-[1.5rem] flex items-center justify-center text-4xl shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-md ${
-                    selectedCategory === category.name 
-                    ? 'bg-gradient-to-br from-[#fa7109] to-[#ab0029] text-white shadow-orange-500/30' 
-                    : 'bg-white border border-gray-100 text-gray-700'
+              <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-3xl flex items-center justify-center shadow-sm transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-xl ${selectedCategory === category.name
+                  ? 'bg-gradient-to-br from-[#fa7109] to-[#ab0029] text-white shadow-orange-500/30 scale-105'
+                  : 'bg-white border border-gray-100'
                 }`}>
-                    {category.icon}
+                <div className={selectedCategory === category.name ? 'text-white' : category.color}>
+                  {category.icon}
                 </div>
-                <span className={`text-xs sm:text-sm font-bold text-center transition-colors ${selectedCategory === category.name ? 'text-[#fa7109]' : 'text-gray-600 group-hover:text-gray-900'}`}>
-                    {category.name}
-                </span>
+              </div>
+              <span className={`text-xs sm:text-[13px] font-black text-center uppercase tracking-tighter transition-colors ${selectedCategory === category.name ? 'text-[#fa7109]' : 'text-gray-500 group-hover:text-gray-900'
+                }`}>
+                {category.name}
+              </span>
             </button>
           ))}
         </div>
@@ -177,7 +196,7 @@ function HomeContent() {
           ======================================================== */}
       <div id="produtos" className="pb-20">
         <section className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
-          
+
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
             <div>
               <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight flex items-center gap-2">
@@ -188,17 +207,17 @@ function HomeContent() {
                 {searchTerm || selectedCategory ? `${filteredProducts.length} produto(s) encontrado(s)` : "As novidades recém-postadas pelos lojistas"}
               </p>
             </div>
-            
+
             {(searchTerm || selectedCategory) && (
-               <button 
+              <button
                 onClick={() => {
                   setSelectedCategory(null);
                   router.push('/');
                 }}
                 className="text-sm font-bold text-[#fa7109] bg-orange-50 px-4 py-2 rounded-xl hover:bg-orange-100 transition-colors w-fit"
-               >
-                 Limpar Filtros ✕
-               </button>
+              >
+                Limpar Filtros ✕
+              </button>
             )}
           </div>
 
@@ -221,7 +240,7 @@ function HomeContent() {
               <p className="text-gray-500 mb-8 max-w-md mx-auto text-lg">
                 Não encontramos itens com o nome <strong className="text-gray-800">"{searchTerm}"</strong>{selectedCategory && ` na categoria ${selectedCategory}`}.
               </p>
-              <button 
+              <button
                 onClick={() => {
                   setSelectedCategory(null);
                   router.push('/');

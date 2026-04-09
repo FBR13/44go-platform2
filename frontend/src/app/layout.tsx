@@ -3,11 +3,11 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-// 👇 AQUI ESTÁ O SEGREDO: Puxar o MainHeader em vez do Header antigo!
 import { MainHeader } from './entregador/components/MainHeader';
 import { Toaster } from 'sonner';
 import { FloatingChat } from '@/components/FloatingChat';
 import { GlobalNotificationManager } from '@/components/GlobalNotificationManager';
+import { CartDrawer } from '@/components/cart/CartDrawer';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -25,9 +25,16 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
+          {/* Gerenciador de notificações em tempo real */}
           <GlobalNotificationManager />
 
-          {/* 👇 AGORA SIM ELE VAI DECIDIR SE MOSTRA A MOTO OU O CARRINHO */}
+          {/* 👇 A MÁGICA ACONTECE AQUI:
+              O CartDrawer fica fora do <main>, garantindo que ele cubra 
+              a tela toda (z-index) quando for aberto de qualquer lugar! 
+          */}
+          <CartDrawer />
+
+          {/* Header que alterna entre Loja/Entregador */}
           <MainHeader />
 
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -51,6 +58,7 @@ export default function RootLayout({
               }
             }}
           />
+
           <FloatingChat />
         </Providers>
       </body>
