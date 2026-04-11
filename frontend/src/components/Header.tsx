@@ -14,11 +14,14 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
   const searchParams = useSearchParams();
   
   const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
+  
+  // 🔥 FIX: Adicionado o campo "image" opcional para satisfazer o TypeScript
   type SearchProduct = {
     id: string;
     title: string | null;
     name?: string | null;
     image_url: string | null;
+    image?: string | null; 
     base_price: number | null;
     price?: number | null;
   };
@@ -37,7 +40,6 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
       const fetchProductsForSearch = async () => {
         setIsLoading(true);
         try {
-          // Fetch only what the dropdown needs (performance + bandwidth)
           const { data, error } = await supabase
             .from('products')
             .select('id,title,image_url,base_price')
@@ -121,12 +123,18 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                   <li key={product.id}>
                     <button 
                       type="button"
-                      onClick={() => handleSelectProduct(product.title || product.name)}
+                      // 🔥 FIX: Garantindo que sempre passe uma string pro handleSelectProduct
+                      onClick={() => handleSelectProduct((product.title || product.name) ?? "")}
                       className="w-full text-left p-3 hover:bg-orange-50 flex items-center gap-4 transition-colors group"
                     >
                       <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
                         {product.image_url || product.image ? (
-                          <img src={product.image_url || product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <img 
+                            // 🔥 FIX: Convertendo null pra undefined no src e alt
+                            src={(product.image_url || product.image) ?? undefined} 
+                            alt={(product.title || product.name) ?? "Produto"} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">Sem foto</div>
                         )}
