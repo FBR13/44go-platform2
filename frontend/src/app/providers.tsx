@@ -2,6 +2,7 @@
 
 import { AuthProvider } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
+import { DeliveryModeProvider } from '@/context/DeliveryModeContext'; // 👈 Importamos o Contexto
 import NextTopLoader from 'nextjs-toploader';
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -20,9 +21,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       />
 
       <AuthProvider>
-        <CartProvider>
-          {children}
-        </CartProvider>
+        <DeliveryModeProvider> {/* 👈 Envelopamos a aplicação aqui */}
+          <CartProvider>
+            {children}
+          </CartProvider>
+        </DeliveryModeProvider>
       </AuthProvider>
     </>
   );

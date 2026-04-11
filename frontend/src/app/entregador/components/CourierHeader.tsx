@@ -30,26 +30,57 @@ export function CourierHeader() {
 
     // Busca o Avatar e a GRANA do Entregador (Em Tempo Real)
     useEffect(() => {
-        if (!user) {
-            setUserAvatar(null);
-            return;
-        }
+        if (!user) return;
+
+        let cancelled = false;
 
         // Busca Avatar
-        supabase.from('users').select('avatar_url').eq('id', user.id).single()
-            .then(({ data }) => setUserAvatar(data?.avatar_url || user.user_metadata?.picture || null));
+        supabase
+            .from('users')
+            .select('avatar_url')
+            .eq('id', user.id)
+            .maybeSingle()
+            .then(({ data }) => {
+                if (cancelled) return;
+                setUserAvatar(
+                    data?.avatar_url ||
+                        (user.user_metadata?.picture as string | undefined) ||
+                        null,
+                );
+            });
 
         // Busca Ganhos Iniciais
-        supabase.from('courier_wallets').select('total_earned').eq('courier_id', user.id).single()
-            .then(({ data }) => { if (data) setTotalEarned(data.total_earned); });
+        supabase
+            .from('courier_wallets')
+            .select('total_earned')
+            .eq('courier_id', user.id)
+            .maybeSingle()
+            .then(({ data }) => {
+                if (cancelled) return;
+                if (data) setTotalEarned(data.total_earned);
+            });
 
         // Ouve Atualizações ao Vivo na Carteira (O Gatilho joga o dinheiro aqui)
-        const channel = supabase.channel('header_wallet_sync')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'courier_wallets', filter: `courier_id=eq.${user.id}` }, (payload) => {
-                setTotalEarned(payload.new.total_earned);
-            }).subscribe();
+        const channel = supabase
+            .channel('header_wallet_sync')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'courier_wallets',
+                    filter: `courier_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    setTotalEarned(payload.new.total_earned);
+                },
+            )
+            .subscribe();
 
-        return () => { supabase.removeChannel(channel); };
+        return () => {
+            cancelled = true;
+            supabase.removeChannel(channel);
+        };
     }, [user]);
 
     const handleSignOut = async () => {
@@ -62,6 +93,7 @@ export function CourierHeader() {
 
     const initial = displayName ? displayName.charAt(0).toUpperCase() : 'E';
     const formatPrice = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(n || 0));
+    const effectiveAvatar = user ? userAvatar : null;
 
     return (
         <nav className="bg-white shadow-sm border-b border-gray-200 relative z-50">
@@ -130,7 +162,7 @@ export function CourierHeader() {
                                             className="flex items-center gap-2 p-1 pl-2 pr-3 rounded-full hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all focus:outline-none"
                                         >
                                             <div className="w-9 h-9 rounded-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white flex items-center justify-center font-bold shadow-sm overflow-hidden border border-orange-100/50 shrink-0">
-                                                {userAvatar ? <img src={userAvatar} alt="" className="w-full h-full object-cover" /> : initial}
+                                                {effectiveAvatar ? <img src={effectiveAvatar} alt="" className="w-full h-full object-cover" /> : initial}
                                             </div>
                                             <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180 text-[#fa7109]' : ''}`} />
                                         </button>
@@ -178,7 +210,7 @@ export function CourierHeader() {
                                     <div className="px-3 py-4 mb-2 border-b border-gray-100 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className="w-12 h-12 rounded-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white flex items-center justify-center font-bold shadow-sm overflow-hidden shrink-0">
-                                                {userAvatar ? <img src={userAvatar} alt="" className="w-full h-full object-cover" /> : initial}
+                                                {effectiveAvatar ? <img src={effectiveAvatar} alt="" className="w-full h-full object-cover" /> : initial}
                                             </div>
                                             <div className="overflow-hidden">
                                                 <p className="text-sm font-bold text-gray-900 truncate">{displayName || 'Entregador'}</p>

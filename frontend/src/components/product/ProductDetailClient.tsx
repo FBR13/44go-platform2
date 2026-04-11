@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Package, ShoppingCart, Zap, Store, Box, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Package, ShoppingCart, Zap, Store, Box, ArrowLeft } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { toast } from 'sonner';
 import { normalizeProductImages, normalizeProductSizes } from '@/lib/product-normalize';
@@ -33,6 +33,13 @@ export function ProductDetailClient({ product }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(sizes.length ? sizes[0]! : null);
   const [adding, setAdding] = useState(false);
+  const [addingTimeoutId, setAddingTimeoutId] = useState<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (addingTimeoutId !== null) window.clearTimeout(addingTimeoutId);
+    };
+  }, [addingTimeoutId]);
 
   const isOutOfStock = (product.stock_quantity ?? 0) <= 0;
   const isLowStock = (product.stock_quantity ?? 0) > 0 && (product.stock_quantity ?? 0) <= 5;
@@ -68,7 +75,8 @@ export function ProductDetailClient({ product }: Props) {
       toast.success('Adicionado à sacola! ✨');
       window.dispatchEvent(new CustomEvent('toggle-cart-sidebar', { detail: true }));
     }
-    setTimeout(() => setAdding(false), 400);
+    if (addingTimeoutId !== null) window.clearTimeout(addingTimeoutId);
+    setAddingTimeoutId(window.setTimeout(() => setAdding(false), 400));
   };
 
   return (

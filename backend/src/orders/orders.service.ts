@@ -4,10 +4,13 @@ import {
   InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
+  Logger,
+  ForbiddenException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { OrderStatus } from './dto/update-order-status.dto';
 
 type ProductLite = {
   id: string;
@@ -17,6 +20,16 @@ type ProductLite = {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
+  // 🔥 MÁQUINA DE ESTADOS: Dicionário do que é permitido
+  private readonly allowedTransitions: Record<string, OrderStatus[]> = {
+    'dispatching': ['at_store'],      // Aceitou a corrida -> Só pode ir pra loja
+    'at_store': ['collected'],        // Chegou na loja -> Só pode coletar
+    'collected': ['on_the_way'],      // Coletou -> Só pode sair para entrega
+    'on_the_way': ['delivered'],      // A caminho -> Só pode finalizar
+  };
+
   constructor(private readonly supabase: SupabaseService) {}
 
   async create(accessToken: string, dto: CreateOrderDto) {
@@ -165,6 +178,60 @@ export class OrdersService {
     }
 
     return data ?? [];
+  }
+
+  // =========================================================================
+  // 🔥 NOVO: MOTOR DE AVANÇO DE STATUS COM VALIDAÇÃO DE SEGURANÇA
+  // =========================================================================
+  async advanceOrderStatus(orderId: string, courierId: string, newStatus: OrderStatus) {
+    this.logger.log(`🔄 Mudança de status: Pedido ${orderId} -> ${newStatus}`);
+    
+    const supabase = this.supabase.getAdminClient();
+
+    // 1. Busca o pedido
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('status, courier_id')
+      .eq('id', orderId)
+      .single();
+
+    if (error || !order) {
+      throw new NotFoundException('Pedido não encontrado.');
+    }
+
+    // 2. Segurança: O motoboy é o dono da corrida?
+    if (order.courier_id !== courierId) {
+      this.logger.warn(`🚨 ALERTA: Entregador ${courierId} tentou alterar pedido de outro!`);
+      throw new ForbiddenException('Você não tem permissão para alterar esta corrida.');
+    }
+
+    // 3. Validação da Máquina de Estados
+    const currentStatus = order.status;
+    const allowedNextStates = this.allowedTransitions[currentStatus] || [];
+
+    if (!allowedNextStates.includes(newStatus)) {
+      this.logger.warn(`❌ Transição inválida: de '${currentStatus}' para '${newStatus}'.`);
+      throw new BadRequestException(`Transição inválida. O pedido está em '${currentStatus}'.`);
+    }
+
+    // 4. Efetiva no Banco
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ status: newStatus })
+      .eq('id', orderId);
+
+    if (updateError) {
+      throw new InternalServerErrorException('Erro ao atualizar o banco de dados.');
+    }
+
+    this.logger.log(`✅ Status atualizado com sucesso: ${orderId} -> ${newStatus}`);
+
+    // Se entregou, podemos liberar a carga
+    if (newStatus === 'delivered') {
+      this.logger.log(`🏁 Entrega ${orderId} finalizada!`);
+    }
+
+    return { success: true, message: `Status atualizado para ${newStatus}` };
   }
 
   findAll() {

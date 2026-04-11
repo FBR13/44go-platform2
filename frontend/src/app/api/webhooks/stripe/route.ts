@@ -3,27 +3,38 @@ import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-
-// NOVO: Cliente Admin para conseguir atualizar o banco sem ser bloqueado pela segurança
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
-);
-
 export async function POST(req: Request) {
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!stripeSecret || !endpointSecret || !supabaseUrl || !supabaseServiceKey) {
+    console.error('❌ ERRO: Variáveis de ambiente faltando no servidor (webhook).');
+    return NextResponse.json(
+      { error: 'Configuração do servidor incompleta (API Keys)' },
+      { status: 500 },
+    );
+  }
+
+  const stripe = new Stripe(stripeSecret);
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
   const body = await req.text();
 
   const headersList = await headers();
-  const sig = headersList.get('stripe-signature')!;
+  const sig = headersList.get('stripe-signature');
+  if (!sig) {
+    return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 });
+  }
 
   let event;
 
   try {
     event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
-  } catch (err: any) {
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Invalid signature';
+    return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });
   }
 
   if (event.type === 'checkout.session.completed') {

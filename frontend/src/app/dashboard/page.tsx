@@ -4,40 +4,47 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { Package, ShoppingBag, Settings, Plus, ArrowRight } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+type StoreRow = {
+  id: string;
+  name: string;
+  seller_id: string;
+  [key: string]: unknown;
+} | null;
 
 export default function DashboardGatekeeper() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   
   const [isChecking, setIsChecking] = useState(true);
-  const [store, setStore] = useState<any>(null);
+  const [store, setStore] = useState<StoreRow>(null);
 
   useEffect(() => {
     if (authLoading) return;
 
     if (!user) {
-      router.push('/auth/login');
+      router.replace('/auth/login');
       return;
     }
 
     async function checkStore() {
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('seller_id', user!.id)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('stores')
+          .select('*')
+          .eq('seller_id', user!.id)
+          .maybeSingle();
 
-      if (data) {
-        setStore(data); 
+        if (!error && data) {
+          setStore(data as StoreRow);
+        } else {
+          setStore(null);
+        }
+      } finally {
+        setIsChecking(false);
       }
-      setIsChecking(false);
     }
 
     checkStore();

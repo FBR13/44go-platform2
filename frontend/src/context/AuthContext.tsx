@@ -24,7 +24,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 async function resolveDisplayName(user: User | null): Promise<string> {
   if (!user) return '';
 
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('users')
     .select('full_name')
     .eq('id', user.id)
@@ -45,18 +45,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let lastUserId: string | null = null;
 
     const applySession = async (nextSession: Session | null) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      const name = await resolveDisplayName(nextSession?.user ?? null);
-      if (!cancelled) setDisplayName(name);
+      const nextUserId = nextSession?.user?.id ?? null;
+      if (nextUserId !== lastUserId) {
+        lastUserId = nextUserId;
+        const name = await resolveDisplayName(nextSession?.user ?? null);
+        if (!cancelled) setDisplayName(name);
+      } else if (!nextUserId) {
+        if (!cancelled) setDisplayName('');
+      }
     };
 
     const init = async () => {
       const {
         data: { session: initial },
       } = await supabase.auth.getSession();
+
+      // Hardening: valida o usuário do token no cliente (evita sessão "fantasma")
+      if (initial?.access_token) {
+        const { data, error } = await supabase.auth.getUser(initial.access_token);
+        if (error || !data.user) {
+          await supabase.auth.signOut();
+          await applySession(null);
+          if (!cancelled) setLoading(false);
+          return;
+        }
+      }
+
       await applySession(initial);
       if (!cancelled) setLoading(false);
     };

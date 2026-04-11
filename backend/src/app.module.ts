@@ -8,9 +8,10 @@ import { UsersModule } from './users/users.module';
 import { StoresModule } from './stores/stores.module';
 import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
+import { DispatchModule } from './dispatch/dispatch.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal: true}), SupabaseModule, AuthModule, UsersModule, StoresModule, ProductsModule, OrdersModule],
+  imports: [ConfigModule.forRoot({isGlobal: true}), SupabaseModule, AuthModule, UsersModule, StoresModule, ProductsModule, OrdersModule, DispatchModule],
   controllers: [AppController],
   providers: [AppService],
 })

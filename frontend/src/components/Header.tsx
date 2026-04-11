@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense, useRef, useEffect } from 'react';
+import { useMemo, useState, Suspense, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -14,7 +14,16 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
   const searchParams = useSearchParams();
   
   const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
-  const [allProducts, setAllProducts] = useState<any[]>([]);
+  type SearchProduct = {
+    id: string;
+    title: string | null;
+    name?: string | null;
+    image_url: string | null;
+    base_price: number | null;
+    price?: number | null;
+  };
+
+  const [allProducts, setAllProducts] = useState<SearchProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
@@ -28,9 +37,13 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
       const fetchProductsForSearch = async () => {
         setIsLoading(true);
         try {
-          const { data, error } = await supabase.from('products').select('*');
+          // Fetch only what the dropdown needs (performance + bandwidth)
+          const { data, error } = await supabase
+            .from('products')
+            .select('id,title,image_url,base_price')
+            .limit(500);
           if (error) throw error;
-          setAllProducts(data || []);
+          setAllProducts((data as SearchProduct[]) || []);
         } catch (err) {
           console.error("Erro ao carregar busca:", err);
         } finally {
@@ -42,12 +55,13 @@ function SearchDropdown({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
     }
   }, [isOpen, allProducts.length]);
 
-  const liveResults = searchInput.trim() === '' 
-    ? [] 
-    : allProducts.filter((p: any) => {
-        const title = (p.title || p.name || '').toLowerCase();
-        return title.includes(searchInput.toLowerCase().trim());
-      }).slice(0, 5);
+  const liveResults = useMemo(() => {
+    const q = searchInput.toLowerCase().trim();
+    if (!q) return [];
+    return allProducts
+      .filter((p) => (p.title || p.name || '').toLowerCase().includes(q))
+      .slice(0, 5);
+  }, [allProducts, searchInput]);
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -184,29 +198,41 @@ export function Header() {
 
   // Busca a foto de perfil na tabela `users` do Supabase
   useEffect(() => {
-    if (user) {
-      const fetchAvatar = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('users')
-            .select('avatar_url')
-            .eq('id', user.id)
-            .single();
-            
-          if (!error && data?.avatar_url) {
-            setUserAvatar(data.avatar_url);
-          } else {
-            // Se não tiver no banco, tenta pegar do Google (se tiver logado com o Google)
-            setUserAvatar(user.user_metadata?.avatar_url || user.user_metadata?.picture || null);
-          }
-        } catch (err) {
-          console.error("Erro ao buscar avatar:", err);
+    if (!user) return;
+
+    let cancelled = false;
+
+    const fetchAvatar = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (cancelled) return;
+
+        if (!error && data?.avatar_url) {
+          setUserAvatar(data.avatar_url);
+          return;
         }
-      };
-      fetchAvatar();
-    } else {
-      setUserAvatar(null);
-    }
+
+        // Se não tiver no banco, tenta pegar do provider (Google etc)
+        setUserAvatar(
+          (user.user_metadata?.avatar_url as string | undefined) ||
+            (user.user_metadata?.picture as string | undefined) ||
+            null,
+        );
+      } catch (err) {
+        console.error('Erro ao buscar avatar:', err);
+      }
+    };
+
+    void fetchAvatar();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const handleSignOut = async () => {
@@ -220,6 +246,7 @@ export function Header() {
   };
 
   const initial = displayName ? displayName.charAt(0).toUpperCase() : 'U';
+  const effectiveAvatar = user ? userAvatar : null;
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200 relative z-50">
@@ -305,8 +332,8 @@ export function Header() {
                     className="flex items-center gap-2 p-1 pl-2 pr-3 rounded-full hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all focus:outline-none"
                   >
                     <div className="w-9 h-9 rounded-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white flex items-center justify-center font-bold shadow-sm overflow-hidden border border-orange-100/50 shrink-0">
-                      {userAvatar ? (
-                        <img src={userAvatar} alt={displayName || 'Usuário'} className="w-full h-full object-cover" />
+                      {effectiveAvatar ? (
+                        <img src={effectiveAvatar} alt={displayName || 'Usuário'} className="w-full h-full object-cover" />
                       ) : (
                         initial
                       )}
@@ -391,7 +418,7 @@ export function Header() {
                 <>
                   <div className="px-3 py-4 mb-2 border-b border-gray-100 flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-r from-[#fa7109] to-[#ab0029] text-white flex items-center justify-center font-bold shadow-sm overflow-hidden border border-orange-100/50 shrink-0">
-                      {userAvatar ? <img src={userAvatar} alt="" className="w-full h-full object-cover" /> : initial}
+                      {effectiveAvatar ? <img src={effectiveAvatar} alt="" className="w-full h-full object-cover" /> : initial}
                     </div>
                     <div className="overflow-hidden">
                       <p className="text-sm font-bold text-gray-900 truncate">{displayName}</p>

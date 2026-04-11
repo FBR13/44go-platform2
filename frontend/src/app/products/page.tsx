@@ -4,21 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import {
-  Package,
-  Search,
-  Store,
-  ShoppingCart,
-  Zap,
-  ChevronLeft,
-  ChevronRight,
-  Star,
-  ArrowRight,
-  ShoppingBag
-} from 'lucide-react';
+import { Package, Search, Store, ShoppingCart, ArrowRight, MapPin, Clock, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCart } from '@/context/CartContext';
 import { CartDrawer } from '@/components/cart/CartDrawer';
+import { useDeliveryMode } from '@/context/DeliveryModeContext';
+import { DeliveryModeToggle } from '@/components/DeliveryModeToggle';
 
 const STORES_PER_PAGE = 5;
 
@@ -41,11 +32,14 @@ type StoreData = {
   description: string | null;
   products: Product[];
   rating?: number;
+  distance_km?: number; // Novo: Recebido do Backend
+  eta_range?: string;   // Novo: Recebido do Backend
 };
 
 export default function MarketplacePage() {
   const router = useRouter();
-  const { addItem, lines } = useCart();
+  const { addItem } = useCart();
+  const { mode, location, setModeFallback } = useDeliveryMode();
 
   const [stores, setStores] = useState<StoreData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,43 +51,76 @@ export default function MarketplacePage() {
     async function fetchStoresAndProducts() {
       setLoading(true);
       try {
-        const from = (currentPage - 1) * STORES_PER_PAGE;
-        const to = from + STORES_PER_PAGE - 1;
+        let formattedStores: StoreData[] = [];
 
-        let query = supabase.from('stores').select('*', { count: 'exact' });
-        if (searchQuery.trim()) {
-          query = query.ilike('name', `%${searchQuery}%`);
+        // ====================================================================
+        // FLUXO 1: MODO ENTREGA RÁPIDA (Chama o NestJS com GPS)
+        // ====================================================================
+        if (mode === 'FAST_DELIVERY' && location) {
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api';
+          
+          const response = await fetch(`${API_URL}/stores/fast-delivery?lat=${location.lat}&lng=${location.lng}`);
+          
+          if (!response.ok) throw new Error('Erro na API de Entrega Rápida');
+          
+          const result = await response.json();
+
+          // Graceful Fallback: NestJS avisou que não tem loja perto
+          if (!result.eligible) {
+            toast.info(result.message || 'Nenhuma loja perto. Voltando ao modo Shopping.');
+            setModeFallback();
+            return; // Sai do useEffect, a mudança de modo vai trigar ele de novo
+          }
+
+          // Se tem loja perto, pegamos os IDs e buscamos os produtos no Supabase
+          // (Isso será totalmente centralizado no Backend na etapa de Unificação Arquitetural)
+          const storeIds = result.stores.map((s: any) => s.id);
+          
+          if (storeIds.length > 0) {
+            let productsQuery = supabase.from('products').select('*').in('store_id', storeIds).eq('is_active', true);
+            if (searchQuery.trim()) productsQuery = productsQuery.ilike('title', `%${searchQuery}%`);
+            
+            const { data: productsData } = await productsQuery;
+
+            formattedStores = result.stores.map((store: any) => {
+              const storeProducts = (productsData || []).filter(p => p.store_id === store.id).slice(0, 4);
+              return { ...store, products: storeProducts, rating: 4.8 };
+            });
+          }
+        } 
+        
+        // ====================================================================
+        // FLUXO 2: MODO MARKETPLACE NORMAL (Lê o Brasil/Mundo inteiro)
+        // ====================================================================
+        else {
+          const from = (currentPage - 1) * STORES_PER_PAGE;
+          const to = from + STORES_PER_PAGE - 1;
+
+          let query = supabase.from('stores').select('*', { count: 'exact' });
+          if (searchQuery.trim()) query = query.ilike('name', `%${searchQuery}%`);
+
+          const { data: storesData, count, error: storesError } = await query
+            .range(from, to)
+            .order('created_at', { ascending: false });
+
+          if (storesError) throw storesError;
+          if (count) setTotalPages(Math.ceil(count / STORES_PER_PAGE));
+
+          if (storesData && storesData.length > 0) {
+            const storeIds = storesData.map(s => s.id);
+            const { data: productsData } = await supabase
+              .from('products').select('*').in('store_id', storeIds).eq('is_active', true);
+
+            formattedStores = storesData.map(store => {
+              const storeProducts = (productsData || []).filter(p => p.store_id === store.id).slice(0, 4);
+              return { ...store, products: storeProducts, rating: 4.8 };
+            });
+          }
         }
 
-        const { data: storesData, count, error: storesError } = await query
-          .range(from, to)
-          .order('created_at', { ascending: false });
-
-        if (storesError) throw storesError;
-        if (count) setTotalPages(Math.ceil(count / STORES_PER_PAGE));
-
-        if (!storesData || storesData.length === 0) {
-          setStores([]);
-          setLoading(false);
-          return;
-        }
-
-        const storeIds = storesData.map(s => s.id);
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('*')
-          .in('store_id', storeIds)
-          .eq('is_active', true);
-
-        const formattedStores: StoreData[] = storesData.map(store => {
-          const storeProducts = (productsData || [])
-            .filter(p => p.store_id === store.id)
-            .slice(0, 4);
-
-          return { ...store, products: storeProducts, rating: 4.8 };
-        });
-
+        // Filtra lojas que não tem produtos
         setStores(formattedStores.filter(s => s.products.length > 0));
+
       } catch (error) {
         console.error('Erro:', error);
         toast.error('Erro ao carregar vitrines.');
@@ -104,7 +131,7 @@ export default function MarketplacePage() {
 
     const timeoutId = setTimeout(() => fetchStoresAndProducts(), 400);
     return () => clearTimeout(timeoutId);
-  }, [currentPage, searchQuery]);
+  }, [currentPage, searchQuery, mode, location]);
 
   const formatPrice = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(n));
 
@@ -128,16 +155,21 @@ export default function MarketplacePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-16">
         
-        {/* HEADER LIMPO */}
-        <div className="mb-12 sm:mb-20 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+        {/* HEADER LIMPO COM TOGGLE */}
+        <div className="mb-12 sm:mb-20 flex flex-col items-center text-center gap-8">
           <div>
             <h1 className="text-5xl sm:text-7xl font-black text-gray-900 tracking-tighter leading-none mb-4">
               Vitrines <span className="text-[#fa7109]">Locais</span>
             </h1>
-            <p className="text-gray-500 text-lg sm:text-xl font-medium">As melhores lojas da região em um só lugar.</p>
+            <p className="text-gray-500 text-lg sm:text-xl font-medium max-w-2xl mx-auto">
+              As melhores lojas da região em um só lugar.
+            </p>
           </div>
 
-          <div className="relative w-full lg:w-[400px] group">
+          {/* 👇 O NOSSO NOVO SWITCH DE MODO 👇 */}
+          <DeliveryModeToggle />
+
+          <div className="relative w-full lg:w-[500px] group mt-4">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#fa7109] transition-colors w-5 h-5" />
             <input
               type="text"
@@ -153,12 +185,14 @@ export default function MarketplacePage() {
           <div className="min-h-[40vh] flex items-center justify-center">
             <span className="animate-spin rounded-full h-12 w-12 border-t-4 border-[#fa7109] border-b-4 border-transparent"></span>
           </div>
+        ) : stores.length === 0 ? (
+          <div className="text-center py-20 text-gray-500 font-medium">Nenhuma loja encontrada.</div>
         ) : (
           <div className="space-y-32">
             {stores.map((store) => (
               <div key={store.id} className="flex flex-col group">
                 
-                {/* 1. BANNER DA LOJA (SEM SOBREPOSIÇÃO QUEBRADA) */}
+                {/* 1. BANNER DA LOJA */}
                 <div className="relative h-64 sm:h-[350px] w-full bg-gray-900 rounded-[2.5rem] sm:rounded-[3.5rem] overflow-hidden shadow-2xl mb-12">
                   {store.banner_url ? (
                     <img src={store.banner_url} alt="" className="w-full h-full object-cover opacity-60 transition-transform duration-[3s] group-hover:scale-105" />
@@ -167,9 +201,16 @@ export default function MarketplacePage() {
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent"></div>
 
+                  {/* 👇 SELO DE ENTREGA RÁPIDA (Exclusivo do Modo Fast Delivery) 👇 */}
+                  {mode === 'FAST_DELIVERY' && store.eta_range && (
+                    <div className="absolute top-6 right-6 bg-white text-gray-900 px-4 py-2 rounded-xl font-black text-sm flex items-center gap-2 shadow-xl animate-in zoom-in">
+                      <Clock className="w-4 h-4 text-[#fa7109]" />
+                      {store.eta_range} • {store.distance_km}km
+                    </div>
+                  )}
+
                   <div className="absolute inset-0 p-6 sm:p-12 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                     <div className="flex items-center gap-6 sm:gap-10">
-                      {/* Logo Apple Style (Quadradinha Arredondada) */}
                       <div className="w-24 h-24 sm:w-40 sm:h-40 aspect-square bg-white p-2 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-2xl shrink-0 -rotate-2 group-hover:rotate-0 transition-all duration-500">
                         <div className="w-full h-full rounded-[1rem] sm:rounded-[2rem] overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100">
                           {store.logo_url ? <img src={store.logo_url} alt="" className="w-full h-full object-cover" /> : <Store className="w-10 h-10 sm:w-16 sm:h-16 text-gray-300" />}
@@ -193,7 +234,7 @@ export default function MarketplacePage() {
                   </div>
                 </div>
 
-                {/* 2. VITRINE DE PRODUTOS (DESIGN CORRIGIDO E LEGÍVEL) */}
+                {/* 2. VITRINE DE PRODUTOS */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-10">
                   {store.products.map((product) => {
                     const hasDiscount = product.sale_price && product.sale_price < product.base_price;
@@ -215,7 +256,6 @@ export default function MarketplacePage() {
                         </Link>
 
                         <div className="p-5 sm:p-8 flex flex-col flex-1">
-                          {/* Título com line-clamp-2 e min-height para alinhar tudo */}
                           <Link href={`/product/${product.id}`} className="font-black text-gray-900 text-sm sm:text-xl line-clamp-2 group-hover/card:text-[#fa7109] transition-colors mb-3 tracking-tight leading-tight min-h-[2.5rem] sm:min-h-[3.5rem]">
                             {product.title || product.name}
                           </Link>
@@ -244,24 +284,6 @@ export default function MarketplacePage() {
           </div>
         )}
 
-        {/* PAGINAÇÃO */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-4 pt-24">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-4 rounded-full border border-gray-100 bg-white text-gray-400 disabled:opacity-30 active:scale-90">
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-            <div className="flex gap-2 sm:gap-3">
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-12 h-12 sm:w-16 sm:h-16 rounded-2xl font-black text-sm sm:text-xl transition-all ${currentPage === i + 1 ? 'bg-gray-900 text-white shadow-xl scale-110' : 'bg-white border border-gray-100 text-gray-400'}`}>
-                  {i + 1}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-4 rounded-full border border-gray-100 bg-white text-gray-400 disabled:opacity-30 active:scale-90">
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

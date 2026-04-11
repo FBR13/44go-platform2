@@ -12,6 +12,7 @@ import {
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 function bearerToken(authorization?: string): string | null {
   if (!authorization?.toLowerCase().startsWith('bearer ')) return null;
@@ -47,6 +48,19 @@ export class OrdersController {
       );
     }
     return this.ordersService.findMine(token);
+  }
+
+  // 🔥 NOVO: Rota segura para avanço de etapa logística do motoboy
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id') orderId: string,
+    @Body() updateDto: UpdateOrderStatusDto,
+    @Headers('x-courier-id') courierId?: string // Pegamos o ID do motoboy pelo Header
+  ) {
+    if (!courierId) {
+      throw new UnauthorizedException('ID do entregador ausente no header (x-courier-id).');
+    }
+    return this.ordersService.advanceOrderStatus(orderId, courierId, updateDto.newStatus);
   }
 
   @Get()

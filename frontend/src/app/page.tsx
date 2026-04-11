@@ -83,7 +83,7 @@ function HomeContent() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-black text-gray-900 mb-6 tracking-tight leading-[1.1]">
-            O seu <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#fa7109] to-[#ab0029]">marketplace</span> local.
+            O Seu <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#fa7109] to-[#ab0029]">Marketplace</span> Local
           </h1>
 
           <p className="text-base sm:text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed px-4 font-medium">

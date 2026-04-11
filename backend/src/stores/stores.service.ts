@@ -66,6 +66,63 @@ export class StoresService {
     return data;
   }
 
+  // ===========================================================================
+  // 🔥 NOVO: MOTOR DE ELEGIBILIDADE - MODO ENTREGA RÁPIDA (POSTGIS)
+  // ===========================================================================
+  async findFastDeliveryStores(lat: number, lng: number) {
+    this.logger.log(`--- BUSCANDO LOJAS ENTREGA RÁPIDA (Lat: ${lat}, Lng: ${lng}) ---`);
+    const supabase = this.supabaseService.getClient();
+
+    // Chama a RPC criada no Supabase para cálculo espacial
+    const { data, error } = await supabase
+      .rpc('get_fast_delivery_stores', { 
+        user_lat: lat, 
+        user_lng: lng 
+      });
+
+    if (error) {
+      this.logger.error(`Erro na RPC PostGIS: ${error.message}`);
+      throw new InternalServerErrorException('Erro crítico ao calcular áreas de entrega.');
+    }
+
+    if (!data || data.length === 0) {
+      this.logger.log('Nenhuma loja elegível no raio. Acionando Fallback para Marketplace.');
+      return {
+        eligible: false,
+        fallbackTo: 'MARKETPLACE',
+        message: 'Nenhuma loja com entrega rápida no seu raio atual.',
+        stores: []
+      };
+    }
+
+    // Engine de Cálculo (SLA e ETA Dinâmico)
+    const storesWithEta = data.map(store => {
+      const distanceKm = store.distance_meters / 1000;
+      
+      // Lógica de Negócio Centralizada no Backend:
+      // Exemplo: 15 min preparo base + 4 min por KM percorrido
+      const basePrepTime = 15;
+      const timePerKm = 4;
+      const etaMinutes = Math.round(basePrepTime + (distanceKm * timePerKm));
+
+      return {
+        ...store,
+        distance_km: Number(distanceKm.toFixed(1)),
+        eta_minutes: etaMinutes,
+        eta_range: `${etaMinutes - 5}-${etaMinutes + 5} min` // Padrão iFood
+      };
+    });
+
+    this.logger.log(`Sucesso: ${storesWithEta.length} lojas prontas para Entrega Rápida.`);
+
+    return {
+      eligible: true,
+      fallbackTo: null,
+      stores: storesWithEta
+    };
+  }
+  // ===========================================================================
+
   findOne(id: string) {
     return `This action returns a #${id} store`;
   }
